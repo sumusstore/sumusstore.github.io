@@ -12,6 +12,7 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import { useProductDetail, type DetailVariant } from "@/hooks/use-product-detail";
 import { EMPTY_FILTERS, buildCards, scopeProducts } from "@/lib/catalogue";
 import { formatNaira } from "@/lib/format";
+import { SITE } from "@/lib/site-config";
 import { supabase } from "@/lib/supabase";
 import { useCartStore } from "@/stores/cart-store";
 import { selectIsWishlisted, useWishlistStore } from "@/stores/wishlist-store";
@@ -43,8 +44,8 @@ function sortStorage(values: string[]): string[] {
 }
 
 function stockStatus(stock: number): { text: string; className: string } {
-  if (stock <= 0) return { text: "Out of stock", className: "text-red-600" };
-  if (stock <= 5) return { text: `Only ${stock} left`, className: "text-amber-600" };
+  if (stock <= 0) return { text: "Sold out", className: "text-red-600" };
+  if (stock <= 5) return { text: `Only ${stock} left`, className: "text-amber-700" };
   return { text: "In stock", className: "text-green-700" };
 }
 
@@ -67,9 +68,9 @@ type OptionGroupProps = {
 
 function OptionGroup({ title, options, selected, onSelect }: OptionGroupProps) {
   return (
-    <div className="mt-5">
+    <div className="mt-4">
       <p className="text-sm font-semibold text-slate-900">
-        {title}: <span className="font-normal text-slate-600">{selected ?? "Choose"}</span>
+        {title}: <span className="font-normal text-slate-600">{selected ?? "Choose one"}</span>
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
         {options.map((option) => {
@@ -80,9 +81,9 @@ function OptionGroup({ title, options, selected, onSelect }: OptionGroupProps) {
               type="button"
               onClick={() => onSelect(option)}
               aria-pressed={isSelected}
-              className={`rounded-lg border px-4 py-2 text-sm font-medium ${
+              className={`min-w-14 rounded-md border px-3 py-2 text-sm font-medium ${
                 isSelected
-                  ? "border-blue-700 bg-blue-50 text-blue-700"
+                  ? "border-blue-700 bg-blue-50 text-blue-700 ring-1 ring-blue-700"
                   : "border-slate-300 text-slate-700 hover:border-slate-500"
               }`}
             >
@@ -174,9 +175,9 @@ export function ProductDetailView({ slug }: { slug: string }) {
   if (status === "loading") {
     return (
       <section className="mx-auto max-w-6xl px-4 py-8">
-        <div className="md:grid md:grid-cols-2 md:gap-10">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-10">
           <div className="aspect-square animate-pulse rounded-xl bg-slate-100" />
-          <div className="mt-6 space-y-4 md:mt-0">
+          <div className="mt-6 space-y-4 lg:mt-0">
             <div className="h-8 w-3/4 animate-pulse rounded bg-slate-100" />
             <div className="h-6 w-1/3 animate-pulse rounded bg-slate-100" />
             <div className="h-12 w-full animate-pulse rounded bg-slate-100" />
@@ -281,8 +282,8 @@ export function ProductDetailView({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="pb-28 md:pb-0">
-      <section className="mx-auto max-w-6xl px-4 py-8">
+    <div className="pb-28 lg:pb-0">
+      <section className="mx-auto max-w-6xl px-4 py-6">
         <nav aria-label="Breadcrumb" className="mb-4 text-sm text-slate-500">
           <Link href="/" className="hover:text-blue-700">
             Home
@@ -299,31 +300,33 @@ export function ProductDetailView({ slug }: { slug: string }) {
           <span className="text-slate-800">{product.name}</span>
         </nav>
 
-        <div className="md:grid md:grid-cols-2 md:gap-10">
+        <div>
+          {product.brand && (
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              {product.brand}
+            </p>
+          )}
+          <h1 className="mt-1 text-2xl font-bold text-slate-900 md:text-3xl">{product.name}</h1>
+          {reviewSummary && (
+            <p className="mt-2 text-sm text-slate-600">
+              {reviewSummary.average.toFixed(1)} out of 5 · {reviewSummary.count}{" "}
+              {reviewSummary.count === 1 ? "review" : "reviews"}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-10">
           <ProductGallery urls={images} alt={product.name} />
 
-          <div className="mt-6 md:mt-0">
-            {product.brand && (
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                {product.brand}
-              </p>
-            )}
-            <h1 className="mt-1 text-2xl font-bold text-slate-900 md:text-3xl">{product.name}</h1>
-
-            {reviewSummary && (
-              <p className="mt-2 text-sm text-slate-600">
-                {reviewSummary.average.toFixed(1)} out of 5 · {reviewSummary.count}{" "}
-                {reviewSummary.count === 1 ? "review" : "reviews"}
-              </p>
-            )}
-
-            <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          {/* Buying box: stays in view while the shopper scrolls on desktop */}
+          <aside className="mt-6 rounded-xl border border-slate-200 p-5 lg:sticky lg:top-40 lg:mt-0">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="text-3xl font-bold text-slate-900">
                 {variant ? formatNaira(priceKobo) : "Not available"}
               </span>
               {onSale && compareAt !== null && (
                 <>
-                  <span className="text-slate-400 line-through">{formatNaira(compareAt)}</span>
+                  <span className="text-slate-500 line-through">{formatNaira(compareAt)}</span>
                   <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
                     -{percent}%
                   </span>
@@ -357,9 +360,9 @@ export function ProductDetailView({ slug }: { slug: string }) {
               />
             )}
 
-            <div className="mt-6 flex items-center gap-4">
+            <div className="mt-5 flex items-center gap-4">
               <span className="text-sm font-semibold text-slate-900">Quantity</span>
-              <div className="flex items-center rounded-lg border border-slate-300">
+              <div className="flex items-center rounded-md border border-slate-300">
                 <button
                   type="button"
                   onClick={() => setQuantity(Math.max(1, safeQuantity - 1))}
@@ -384,40 +387,59 @@ export function ProductDetailView({ slug }: { slug: string }) {
               </div>
             </div>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-5 space-y-3">
+              <button
+                type="button"
+                onClick={handleBuyNow}
+                disabled={soldOut}
+                className="w-full rounded-full bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300"
+              >
+                Buy it now
+              </button>
               <button
                 type="button"
                 onClick={handleAddToCart}
                 disabled={soldOut}
-                className="flex-1 rounded-lg bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300"
+                className="w-full rounded-full border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50 disabled:border-slate-300 disabled:text-slate-400"
               >
                 {soldOut ? "Sold out" : justAdded ? "Added to cart" : "Add to cart"}
               </button>
               <button
                 type="button"
-                onClick={handleBuyNow}
-                disabled={soldOut}
-                className="flex-1 rounded-lg border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50 disabled:border-slate-300 disabled:text-slate-400"
-              >
-                Buy now
-              </button>
-              <button
-                type="button"
                 onClick={handleWishlist}
                 aria-pressed={wished}
-                aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
-                className="flex items-center justify-center rounded-lg border border-slate-300 px-4 py-3 hover:border-red-600 hover:text-red-600"
+                className="flex w-full items-center justify-center gap-2 py-2 text-sm font-semibold text-blue-700 hover:underline"
               >
-                <HeartIcon className={`h-5 w-5 ${wished ? "fill-red-600 text-red-600" : ""}`} />
+                <HeartIcon className={`h-4 w-4 ${wished ? "fill-red-600 text-red-600" : ""}`} />
+                {wished ? "Saved to wishlist" : "Save to wishlist"}
               </button>
             </div>
 
-            <div className="mt-6 rounded-xl border border-slate-200 p-4">
+            <div className="mt-5 border-t border-slate-200 pt-4 text-sm">
+              <p className="font-semibold text-slate-900">Sold by {SITE.name}</p>
+              <ul className="mt-2 space-y-1 text-slate-700">
+                <li>✓ Genuine product</li>
+                <li>
+                  ✓ Warranty on every item.{" "}
+                  <Link href="/warranty/" className="font-medium text-blue-700 hover:underline">
+                    Details
+                  </Link>
+                </li>
+                <li>
+                  ✓ Returns policy.{" "}
+                  <Link href="/returns/" className="font-medium text-blue-700 hover:underline">
+                    Read more
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            <div className="mt-5 border-t border-slate-200 pt-4 text-sm">
               <p className="font-semibold text-slate-900">Delivery</p>
               {zones.length === 0 ? (
-                <p className="mt-2 text-sm text-slate-600">Delivery options are loading.</p>
+                <p className="mt-2 text-slate-600">Delivery options are loading.</p>
               ) : (
-                <ul className="mt-2 space-y-2 text-sm text-slate-700">
+                <ul className="mt-2 space-y-2 text-slate-700">
                   {zones.map((zone) => (
                     <li key={zone.name} className="flex flex-wrap justify-between gap-2">
                       <span>{zone.name}</span>
@@ -436,23 +458,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
                 </Link>
               </p>
             </div>
-
-            <ul className="mt-4 space-y-1 text-sm text-slate-700">
-              <li>✓ Genuine product</li>
-              <li>
-                ✓ Warranty on every item.{" "}
-                <Link href="/warranty/" className="font-medium text-blue-700 hover:underline">
-                  Warranty details
-                </Link>
-              </li>
-              <li>
-                ✓ Returns policy.{" "}
-                <Link href="/returns/" className="font-medium text-blue-700 hover:underline">
-                  Read more
-                </Link>
-              </li>
-            </ul>
-          </div>
+          </aside>
         </div>
 
         <div className="mt-12">
@@ -543,8 +549,8 @@ export function ProductDetailView({ slug }: { slug: string }) {
         </div>
       )}
 
-      {/* Mobile buy bar: price and Add to cart stay visible while scrolling. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white px-4 py-3 shadow-lg md:hidden">
+      {/* Mobile buy bar: price and buttons stay visible while scrolling. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white px-4 py-3 shadow-lg lg:hidden">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-xs text-slate-500">{variant?.label || product.name}</p>
@@ -552,14 +558,24 @@ export function ProductDetailView({ slug }: { slug: string }) {
               {variant ? formatNaira(priceKobo) : "Not available"}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            disabled={soldOut}
-            className="shrink-0 rounded-lg bg-blue-700 px-5 py-3 font-semibold text-white disabled:bg-slate-300"
-          >
-            {soldOut ? "Sold out" : justAdded ? "Added" : "Add to cart"}
-          </button>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              disabled={soldOut}
+              className="rounded-full border border-blue-700 px-4 py-2.5 text-sm font-semibold text-blue-700 disabled:border-slate-300 disabled:text-slate-400"
+            >
+              {justAdded ? "Added" : "Add to cart"}
+            </button>
+            <button
+              type="button"
+              onClick={handleBuyNow}
+              disabled={soldOut}
+              className="rounded-full bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-300"
+            >
+              Buy it now
+            </button>
+          </div>
         </div>
       </div>
     </div>
