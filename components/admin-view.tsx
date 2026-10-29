@@ -6,9 +6,6 @@ import { AdminProducts } from "@/components/admin-products";
 import { AdminSetup } from "@/components/admin-setup";
 import { Notice } from "@/components/form-field";
 
-// Opens the workflow page where the site is rebuilt. Check the repository name if the link doesn't open.
-const REBUILD_URL = "https://github.com/sumusstore/sumusstore.github.io/actions";
-
 type Tab = "orders" | "products" | "setup";
 
 const TABS: { value: Tab; label: string }[] = [
@@ -51,12 +48,8 @@ export function AdminView() {
 
       <div className="mt-10">
         <Notice tone="info">
-          Products, brands and categories show in the shop straight away. Their own product and category pages
-          appear after the site is rebuilt, so until then tapping them shows a 404.{" "}
-          <a href={REBUILD_URL} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
-            Open the rebuild page
-          </a>{" "}
-          and tap Run workflow.
+          Products, brands and categories show in the shop straight away. A new product&apos;s own page goes
+          live a few minutes after you switch it on, because the site rebuilds automatically.
         </Notice>
       </div>
     </section>
