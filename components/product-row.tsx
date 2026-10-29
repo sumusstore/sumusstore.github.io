@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { ProductCard } from "@/components/product-card";
 import type { LoadStatus, ProductCardData } from "@/hooks/use-home-products";
@@ -9,6 +10,8 @@ type ProductRowProps = {
   status: LoadStatus;
   headerAction?: ReactNode;
   emptyText?: string;
+  /** Adds a "See all" link beside the title. */
+  seeAllHref?: string;
 };
 
 /** A titled row of product cards. Swipes sideways on phones, shows a grid on larger screens. */
@@ -19,15 +22,23 @@ export function ProductRow({
   status,
   headerAction,
   emptyText,
+  seeAllHref,
 }: ProductRowProps) {
   return (
-    <section className="mx-auto max-w-6xl px-4 py-10">
+    <section className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
+          <h2 className="text-xl font-bold text-slate-900 md:text-2xl">{title}</h2>
           {subtitle && <p className="mt-1 text-sm text-slate-600">{subtitle}</p>}
         </div>
-        {headerAction}
+        <div className="flex items-center gap-4">
+          {headerAction}
+          {seeAllHref && (
+            <Link href={seeAllHref} className="text-sm font-semibold text-blue-700 hover:underline">
+              See all
+            </Link>
+          )}
+        </div>
       </div>
 
       {status === "loading" && (
