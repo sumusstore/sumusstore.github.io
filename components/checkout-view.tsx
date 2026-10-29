@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type InputHTMLAttributes } from "react";
-import {
-  useCheckoutOptions,
-  type DeliveryZone,
-} from "@/hooks/use-checkout-options";
+import { useCheckoutOptions, type DeliveryZone } from "@/hooks/use-checkout-options";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { formatNaira } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 import { selectSubtotalKobo, useCartStore } from "@/stores/cart-store";
+
+type PaymentMethod = "paystack" | "bank_transfer";
 
 type FormState = {
   fullName: string;
@@ -21,6 +20,7 @@ type FormState = {
   street: string;
   zoneId: string;
   storeId: string;
+  paymentMethod: PaymentMethod;
   agreed: boolean;
 };
 
@@ -33,6 +33,7 @@ const INITIAL_FORM: FormState = {
   street: "",
   zoneId: "",
   storeId: "",
+  paymentMethod: "paystack",
   agreed: false,
 };
 
@@ -71,6 +72,41 @@ function Field({
         className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-600 focus:outline-none"
       />
     </div>
+  );
+}
+
+function PaymentOption({
+  value,
+  title,
+  detail,
+  selected,
+  onSelect,
+}: {
+  value: PaymentMethod;
+  title: string;
+  detail: string;
+  selected: boolean;
+  onSelect: (value: PaymentMethod) => void;
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${
+        selected ? "border-blue-700 bg-blue-50" : "border-slate-200 hover:border-slate-400"
+      }`}
+    >
+      <input
+        type="radio"
+        name="payment"
+        value={value}
+        checked={selected}
+        onChange={() => onSelect(value)}
+        className="mt-1 accent-blue-700"
+      />
+      <span>
+        <span className="block font-semibold text-slate-900">{title}</span>
+        <span className="block text-sm text-slate-600">{detail}</span>
+      </span>
+    </label>
   );
 }
 
@@ -138,28 +174,42 @@ export function CheckoutView() {
         delivery: {
           zoneName: zone.name,
           storeId: isPickup ? form.storeId : null,
-          address: isPickup
-            ? null
-            : { state: form.state, area: form.area, street: form.street },
+          address: isPickup ? null : { state: form.state, area: form.area, street: form.street },
         },
-        paymentMethod: "bank_transfer",
+        paymentMethod: form.paymentMethod,
         items: items.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
       },
     });
-    setSubmitting(false);
 
     if (invokeError) {
+      setSubmitting(false);
       setError(await readError(invokeError));
       return;
     }
 
-    const result = data as { orderNumber?: string; totalKobo?: number } | null;
+    const result = data as {
+      orderNumber?: string;
+      totalKobo?: number;
+      authorizationUrl?: string;
+    } | null;
+
     if (!result?.orderNumber) {
+      setSubmitting(false);
       setError("We couldn't place your order. Please try again.");
       return;
     }
 
-    // The cart is cleared on the confirmation page, so this page doesn't flash "empty".
+    if (form.paymentMethod === "paystack") {
+      if (!result.authorizationUrl) {
+        setSubmitting(false);
+        setError("We couldn't start your card payment. Please try again.");
+        return;
+      }
+      // Send the customer to Paystack's secure page. Paystack brings them back to our confirmation page.
+      window.location.assign(result.authorizationUrl);
+      return;
+    }
+
     router.push(
       `/order/?ref=${encodeURIComponent(result.orderNumber)}&amount=${result.totalKobo ?? 0}`
     );
@@ -302,17 +352,20 @@ export function CheckoutView() {
 
           <fieldset className="space-y-3">
             <legend className="text-lg font-semibold text-slate-900">3. Payment</legend>
-            <div className="flex items-start gap-3 rounded-xl border border-blue-700 bg-blue-50 p-4">
-              <input type="radio" name="payment" checked readOnly className="mt-1 accent-blue-700" />
-              <div>
-                <p className="font-semibold text-slate-900">Bank transfer</p>
-                <p className="text-sm text-slate-600">
-                  Your bank details appear after you place the order. We confirm your order once the
-                  transfer arrives.
-                </p>
-              </div>
-            </div>
-            <p className="text-xs text-slate-500">Card and USSD payments will be added here soon.</p>
+            <PaymentOption
+              value="paystack"
+              title="Card, bank or USSD"
+              detail="Pay securely on Paystack. You'll be taken to their page and brought back here."
+              selected={form.paymentMethod === "paystack"}
+              onSelect={(value) => update("paymentMethod", value)}
+            />
+            <PaymentOption
+              value="bank_transfer"
+              title="Bank transfer"
+              detail="Pay into our account and send proof on WhatsApp. We confirm once it arrives."
+              selected={form.paymentMethod === "bank_transfer"}
+              onSelect={(value) => update("paymentMethod", value)}
+            />
           </fieldset>
 
           <label className="flex items-start gap-3 text-sm text-slate-700">
@@ -347,7 +400,11 @@ export function CheckoutView() {
             disabled={submitting}
             className="w-full rounded-lg bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300 lg:w-auto"
           >
-            {submitting ? "Placing order…" : "Place order"}
+            {submitting
+              ? "Please wait…"
+              : form.paymentMethod === "paystack"
+                ? "Continue to payment"
+                : "Place order"}
           </button>
         </div>
 
