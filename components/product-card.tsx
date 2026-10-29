@@ -2,13 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { QuickView } from "@/components/quick-view";
+import { HeartIcon } from "@/components/icons";
 import type { ProductCardData } from "@/hooks/use-home-products";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { formatNaira } from "@/lib/format";
 import { useCartStore } from "@/stores/cart-store";
+import { MAX_COMPARE, selectIsCompared, useCompareStore } from "@/stores/compare-store";
 import { selectIsWishlisted, useWishlistStore } from "@/stores/wishlist-store";
-import { HeartIcon } from "@/components/icons";
 
 function stockLabel(stock: number): { text: string; className: string } {
   if (stock <= 0) return { text: "Out of stock", className: "text-red-600" };
@@ -19,13 +21,19 @@ function stockLabel(stock: number): { text: string; className: string } {
 export function ProductCard({ product }: { product: ProductCardData }) {
   const hydrated = useHydrated();
   const [justAdded, setJustAdded] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [compareNote, setCompareNote] = useState<string | null>(null);
 
   const addToCart = useCartStore((state) => state.addItem);
   const toggleWishlist = useWishlistStore((state) => state.toggleItem);
   const inWishlist = useWishlistStore(selectIsWishlisted(product.variantId));
-
-  // Wait for the browser to load saved data, so the server and browser render the same.
   const wished = hydrated && inWishlist;
+
+  const toggleCompare = useCompareStore((state) => state.toggle);
+  const inCompare = useCompareStore(selectIsCompared(product.productId));
+  const compared = hydrated && inCompare;
+
+  const closeQuickView = useCallback(() => setQuickOpen(false), []);
 
   const soldOut = product.stock <= 0;
   const compareAt = product.compareAtKobo;
@@ -61,6 +69,13 @@ export function ProductCard({ product }: { product: ProductCardData }) {
       imageUrl: product.imageUrl,
       priceKobo: product.priceKobo,
     });
+  }
+
+  function handleCompare() {
+    const result = toggleCompare(product.productId);
+    setCompareNote(
+      result === "full" ? `Compare holds up to ${MAX_COMPARE} products. Remove one first.` : null
+    );
   }
 
   return (
@@ -129,6 +144,38 @@ export function ProductCard({ product }: { product: ProductCardData }) {
       >
         {soldOut ? "Sold out" : justAdded ? "Added to cart" : "Add to cart"}
       </button>
+
+      <div className="mt-3 flex items-center justify-between gap-2 text-xs">
+        <button
+          type="button"
+          onClick={() => setQuickOpen(true)}
+          className="font-semibold text-blue-700 hover:underline"
+        >
+          Quick view
+        </button>
+        <label className="flex cursor-pointer items-center gap-1.5 text-slate-600">
+          <input
+            type="checkbox"
+            checked={compared}
+            onChange={handleCompare}
+            className="h-3.5 w-3.5 accent-blue-700"
+          />
+          Compare
+        </label>
+      </div>
+      {compareNote && (
+        <p role="status" className="mt-1 text-xs text-amber-700">
+          {compareNote}
+        </p>
+      )}
+
+      {quickOpen && (
+        <QuickView
+          slug={product.slug}
+          preferredVariantId={product.variantId}
+          onClose={closeQuickView}
+        />
+      )}
     </article>
   );
 }
