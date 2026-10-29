@@ -52,6 +52,7 @@ export function CatalogueView({
   const cards = useMemo(() => buildCards(scoped, filters, sort), [scoped, filters, sort]);
   const shown = cards.slice(0, visible);
   const activeCount = countActiveFilters(filters);
+  const resultLabel = `${cards.length} ${cards.length === 1 ? "result" : "results"}`;
 
   // Changing filters or sorting starts again from the first page of results.
   function changeFilters(next: CatalogueFilters) {
@@ -69,47 +70,33 @@ export function CatalogueView({
   }
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8">
+    <section className="mx-auto max-w-6xl px-4 py-6">
       {breadcrumb}
-      <h1 className="text-3xl font-bold text-slate-900">{title}</h1>
+      <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{title}</h1>
       {subtitle && <p className="mt-1 text-sm text-slate-600">{subtitle}</p>}
       {children}
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => setPanelOpen((open) => !open)}
-          aria-expanded={panelOpen}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium md:hidden"
-        >
-          Filters{activeCount > 0 ? ` (${activeCount})` : ""}
-        </button>
-
-        <p className="text-sm text-slate-600" aria-live="polite">
-          {status === "ready" && `${cards.length} ${cards.length === 1 ? "product" : "products"}`}
-        </p>
-
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          Sort by
-          <select
-            value={sort}
-            onChange={(event) => changeSort(event.target.value as SortOption)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-          >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <div className="mt-6 md:flex md:gap-8">
+      <div className="mt-6 md:grid md:grid-cols-[14rem_minmax(0,1fr)] md:items-start md:gap-6">
+        {/* Filters: a side panel on desktop, a sheet opened by a button on phones */}
         <aside
-          className={`${panelOpen ? "block" : "hidden"} mb-8 md:mb-0 md:block md:w-56 md:shrink-0`}
+          className={`${
+            panelOpen ? "block" : "hidden"
+          } mb-6 rounded-xl border border-slate-200 bg-white p-4 md:sticky md:top-40 md:mb-0 md:block`}
         >
+          <div className="mb-4 flex items-center justify-between md:hidden">
+            <p className="font-bold text-slate-900">Filters</p>
+            <button
+              type="button"
+              onClick={() => setPanelOpen(false)}
+              className="text-sm font-semibold text-blue-700"
+            >
+              Close
+            </button>
+          </div>
+          <p className="mb-4 hidden text-base font-bold text-slate-900 md:block">Filters</p>
+
           <FilterPanel facets={facets} filters={filters} onChange={changeFilters} />
+
           {activeCount > 0 && (
             <button
               type="button"
@@ -121,9 +108,41 @@ export function CatalogueView({
           )}
         </aside>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
+          {/* Results line and sort menu */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPanelOpen((open) => !open)}
+                aria-expanded={panelOpen}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold md:hidden"
+              >
+                Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+              </button>
+              <p className="text-sm text-slate-600" aria-live="polite">
+                {status === "ready" && resultLabel}
+              </p>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              Sort by
+              <select
+                value={sort}
+                onChange={(event) => changeSort(event.target.value as SortOption)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
           {status === "loading" && (
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
               {Array.from({ length: 8 }, (_, index) => (
                 <div key={index} className="aspect-[3/4] animate-pulse rounded-xl bg-slate-100" />
               ))}
@@ -131,13 +150,13 @@ export function CatalogueView({
           )}
 
           {status === "error" && (
-            <p className="text-sm text-slate-600">
+            <p className="mt-4 text-sm text-slate-600">
               Products are unavailable right now. Please refresh the page shortly.
             </p>
           )}
 
           {status === "ready" && cards.length === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center">
+            <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-8 text-center">
               <p className="font-semibold text-slate-900">No products match these choices.</p>
               <p className="mt-1 text-sm text-slate-600">
                 Try removing a filter or searching for something else.
@@ -156,7 +175,7 @@ export function CatalogueView({
 
           {status === "ready" && shown.length > 0 && (
             <>
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
                 {shown.map((card) => (
                   <ProductCard key={card.variantId} product={card} />
                 ))}
@@ -170,7 +189,7 @@ export function CatalogueView({
                   <button
                     type="button"
                     onClick={() => setVisible((count) => count + PAGE_SIZE)}
-                    className="mt-3 rounded-lg border border-slate-300 px-6 py-2.5 text-sm font-semibold hover:border-blue-600 hover:text-blue-700"
+                    className="mt-3 rounded-full border border-slate-300 px-6 py-2.5 text-sm font-semibold hover:border-blue-600 hover:text-blue-700"
                   >
                     Load more
                   </button>
