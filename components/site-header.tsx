@@ -4,16 +4,23 @@ import Link from "next/link";
 import { useState } from "react";
 import { useCategoryTree } from "@/hooks/use-category-tree";
 import { useHydrated } from "@/hooks/use-hydrated";
+import { SITE } from "@/lib/site-config";
 import { selectCartCount, useCartStore } from "@/stores/cart-store";
 import { useWishlistStore } from "@/stores/wishlist-store";
-import { SITE } from "@/lib/site-config";
-import { CartIcon, HeartIcon, MenuIcon, SearchIcon, UserIcon } from "@/components/icons";
+import {
+  CartIcon,
+  ChevronDownIcon,
+  HeartIcon,
+  MenuIcon,
+  SearchIcon,
+  UserIcon,
+} from "@/components/icons";
 import { MobileMenu } from "@/components/mobile-menu";
 
 function CountBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-xs font-bold text-white">
+    <span className="absolute -right-0.5 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-xs font-bold text-white">
       {count > 99 ? "99+" : count}
     </span>
   );
@@ -36,30 +43,37 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 bg-white shadow-sm">
-      {/* Top strip: delivery promise, store locator, WhatsApp, phone */}
-      <div className="bg-slate-900 text-xs text-slate-100">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-2">
-          <p className="hidden md:block">{SITE.deliveryNote}</p>
-          <div className="flex w-full items-center justify-between gap-4 md:w-auto md:justify-end md:gap-5">
-            <Link href="/stores/" className="hidden hover:text-white md:block">
+      {/* Top strip: sign in and helpful links */}
+      <div className="border-b border-slate-200 bg-slate-50 text-xs text-slate-700">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-1.5">
+          <p>
+            Hi!{" "}
+            <Link href="/login/" className="font-semibold text-blue-700 hover:underline">
+              Sign in
+            </Link>{" "}
+            or{" "}
+            <Link href="/register/" className="font-semibold text-blue-700 hover:underline">
+              register
+            </Link>
+          </p>
+          <div className="hidden items-center gap-5 md:flex">
+            <Link href="/track/" className="hover:text-blue-700">
+              Track an order
+            </Link>
+            <Link href="/stores/" className="hover:text-blue-700">
               Store locator
             </Link>
-            <a
-              href={SITE.whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-white"
-            >
-              WhatsApp
-            </a>
-            <a href={SITE.phoneLink} className="font-semibold hover:text-white">
+            <Link href="/contact/" className="hover:text-blue-700">
+              Help and contact
+            </Link>
+            <a href={SITE.phoneLink} className="font-semibold text-slate-900">
               {SITE.phoneDisplay}
             </a>
           </div>
         </div>
       </div>
 
-      {/* Main row: menu, logo, search, account, wishlist, cart */}
+      {/* Main row: menu, logo, icons, and search with a category picker */}
       <div className="border-b border-slate-200">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3 md:flex-nowrap md:gap-6">
           <button
@@ -72,7 +86,7 @@ export function SiteHeader() {
             <MenuIcon className="h-6 w-6" />
           </button>
 
-          <Link href="/" className="shrink-0 text-xl font-bold text-blue-700">
+          <Link href="/" className="shrink-0 text-2xl font-extrabold tracking-tight text-blue-700">
             {SITE.name}
           </Link>
 
@@ -80,56 +94,78 @@ export function SiteHeader() {
             action="/search/"
             method="get"
             role="search"
-            className="order-last w-full md:order-none md:w-auto md:flex-1"
+            className="order-last flex w-full overflow-hidden rounded-full border-2 border-blue-700 focus-within:ring-2 focus-within:ring-blue-200 md:order-none md:w-auto md:flex-1"
           >
-            <div className="relative">
-              <input
-                type="search"
-                name="q"
-                placeholder="Search phones, TVs, appliances and more"
-                aria-label="Search products"
-                className="w-full rounded-lg border border-slate-300 py-2.5 pl-4 pr-12 text-sm focus:border-blue-600 focus:outline-none"
-              />
-              <button
-                type="submit"
-                aria-label="Search"
-                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-blue-700 p-2 text-white hover:bg-blue-800"
-              >
-                <SearchIcon className="h-4 w-4" />
-              </button>
-            </div>
+            <label htmlFor="header-category" className="sr-only">
+              Category
+            </label>
+            <select
+              id="header-category"
+              name="cat"
+              className="hidden max-w-40 shrink-0 border-r border-slate-300 bg-slate-100 px-3 text-sm text-slate-700 md:block"
+            >
+              <option value="">All categories</option>
+              {tree.map((node) => (
+                <option key={node.id} value={node.slug}>
+                  {node.name}
+                </option>
+              ))}
+            </select>
+
+            <label htmlFor="header-search" className="sr-only">
+              Search products
+            </label>
+            <input
+              id="header-search"
+              type="search"
+              name="q"
+              placeholder="Search for phones, TVs, appliances and more"
+              className="min-w-0 flex-1 bg-white px-4 py-2.5 text-sm focus:outline-none"
+            />
+            <button
+              type="submit"
+              aria-label="Search"
+              className="flex shrink-0 items-center justify-center bg-blue-700 px-5 text-white hover:bg-blue-800"
+            >
+              <SearchIcon className="h-5 w-5" />
+            </button>
           </form>
 
-          <nav aria-label="Account, wishlist and cart" className="ml-auto flex items-center gap-1 md:gap-5">
+          <nav
+            aria-label="Account, wishlist and cart"
+            className="ml-auto flex shrink-0 items-center gap-1 md:ml-0 md:gap-4"
+          >
             <Link
               href="/account/"
               aria-label="My account"
-              className="flex items-center gap-1.5 p-2 text-sm font-medium text-slate-800 hover:text-blue-700"
+              className="flex flex-col items-center gap-0.5 p-1 text-xs text-slate-800 hover:text-blue-700"
             >
-              <UserIcon className="h-5 w-5" />
-              <span className="hidden lg:inline">Account</span>
+              <UserIcon className="h-6 w-6" />
+              <span className="hidden lg:block">Account</span>
             </Link>
             <Link
               href="/wishlist/"
               aria-label={`Wishlist, ${shownWishlistCount} items`}
-              className="relative p-2 text-slate-800 hover:text-blue-700"
+              className="relative flex flex-col items-center gap-0.5 p-1 text-xs text-slate-800 hover:text-blue-700"
             >
-              <HeartIcon className="h-5 w-5" />
+              <HeartIcon className="h-6 w-6" />
+              <span className="hidden lg:block">Wishlist</span>
               <CountBadge count={shownWishlistCount} />
             </Link>
             <Link
               href="/cart/"
               aria-label={`Cart, ${shownCartCount} items`}
-              className="relative p-2 text-slate-800 hover:text-blue-700"
+              className="relative flex flex-col items-center gap-0.5 p-1 text-xs text-slate-800 hover:text-blue-700"
             >
-              <CartIcon className="h-5 w-5" />
+              <CartIcon className="h-6 w-6" />
+              <span className="hidden lg:block">Cart</span>
               <CountBadge count={shownCartCount} />
             </Link>
           </nav>
         </div>
       </div>
 
-      {/* Desktop category bar with mega menu */}
+      {/* Category row, with subcategories on hover */}
       <nav
         aria-label="Categories"
         className="relative hidden border-b border-slate-200 bg-white md:block"
@@ -140,34 +176,41 @@ export function SiteHeader() {
           }
         }}
       >
-        <ul className="mx-auto flex max-w-6xl items-center gap-6 px-4">
-          {status === "loading" && (
-            <li className="py-3 text-sm text-slate-500">Loading categories…</li>
-          )}
-          {status === "error" && (
-            <li className="py-3 text-sm text-slate-500">
-              Categories are unavailable.{" "}
-              <Link href="/shop/" className="font-medium text-blue-700">
-                Browse all products
-              </Link>
-            </li>
-          )}
-          {status === "ready" &&
-            tree.map((node) => (
-              <li
-                key={node.id}
-                onMouseEnter={() => setActiveId(node.id)}
-                onFocus={() => setActiveId(node.id)}
-              >
-                <Link
-                  href={`/category/${node.slug}/`}
-                  className="block py-3 text-sm font-semibold text-slate-800 hover:text-blue-700 focus:text-blue-700"
+        <div className="mx-auto flex max-w-6xl items-center gap-6 px-4">
+          <span className="flex shrink-0 items-center gap-1 py-3 text-sm font-semibold text-slate-900">
+            Shop by category
+            <ChevronDownIcon className="h-4 w-4" />
+          </span>
+
+          <ul className="flex min-w-0 flex-1 items-center gap-5 overflow-x-auto">
+            {status === "loading" && (
+              <li className="py-3 text-sm text-slate-500">Loading categories…</li>
+            )}
+            {status === "error" && (
+              <li className="py-3 text-sm text-slate-500">Categories are unavailable.</li>
+            )}
+            {status === "ready" &&
+              tree.map((node) => (
+                <li
+                  key={node.id}
+                  className="shrink-0"
+                  onMouseEnter={() => setActiveId(node.id)}
+                  onFocus={() => setActiveId(node.id)}
                 >
-                  {node.name}
-                </Link>
-              </li>
-            ))}
-        </ul>
+                  <Link
+                    href={`/category/${node.slug}/`}
+                    className="block py-3 text-sm text-slate-700 hover:text-blue-700 focus:text-blue-700"
+                  >
+                    {node.name}
+                  </Link>
+                </li>
+              ))}
+          </ul>
+
+          <Link href="/shop/" className="shrink-0 py-3 text-sm font-semibold text-blue-700 hover:underline">
+            All products
+          </Link>
+        </div>
 
         {activeNode && activeNode.children.length > 0 && (
           <div className="absolute inset-x-0 top-full z-50 border-t border-slate-200 bg-white shadow-lg">
@@ -207,12 +250,7 @@ export function SiteHeader() {
         )}
       </nav>
 
-      <MobileMenu
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        tree={tree}
-        status={status}
-      />
+      <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} tree={tree} status={status} />
     </header>
   );
 }
