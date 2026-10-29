@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { CompareBar } from "@/components/compare-bar";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { WishlistSync } from "@/components/wishlist-sync";
@@ -25,6 +26,7 @@ export default function RootLayout({
         <SiteHeader />
         {children}
         <SiteFooter />
+        <CompareBar />
       </body>
     </html>
   );
