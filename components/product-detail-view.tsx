@@ -69,7 +69,7 @@ type OptionGroupProps = {
 function OptionGroup({ title, options, selected, onSelect }: OptionGroupProps) {
   return (
     <div className="mt-4">
-      <p className="text-sm font-semibold text-slate-900">
+      <p className="text-sm font-semibold text-ink">
         {title}: <span className="font-normal text-slate-600">{selected ?? "Choose one"}</span>
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
@@ -174,14 +174,14 @@ export function ProductDetailView({ slug }: { slug: string }) {
   // All hooks are above this line. The checks below only decide what to show.
   if (status === "loading") {
     return (
-      <section className="mx-auto max-w-6xl px-4 py-8">
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-10">
-          <div className="aspect-square animate-pulse rounded-xl bg-slate-100" />
-          <div className="mt-6 space-y-4 lg:mt-0">
-            <div className="h-8 w-3/4 animate-pulse rounded bg-slate-100" />
-            <div className="h-6 w-1/3 animate-pulse rounded bg-slate-100" />
-            <div className="h-12 w-full animate-pulse rounded bg-slate-100" />
-          </div>
+      <section className="mx-auto max-w-6xl px-4 py-6">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white px-6 py-16 text-center">
+          <span
+            aria-hidden="true"
+            className="h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-700"
+          />
+          <p className="mt-4 font-semibold text-ink">Loading product…</p>
+          <p className="mt-1 text-sm text-slate-500">This usually takes a moment.</p>
         </div>
       </section>
     );
@@ -198,11 +198,14 @@ export function ProductDetailView({ slug }: { slug: string }) {
   if (!product) {
     return (
       <section className="mx-auto max-w-6xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">Product not found</h1>
+        <h1 className="text-2xl font-bold text-ink">Product not found</h1>
         <p className="mt-2 text-sm text-slate-600">
           It may have been removed, or the link may be wrong.
         </p>
-        <Link href="/shop/" className="mt-6 inline-block font-semibold text-blue-700 hover:underline">
+        <Link
+          href="/shop/"
+          className="mt-6 inline-block rounded-full bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800"
+        >
           Browse all products
         </Link>
       </section>
@@ -297,7 +300,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
             </>
           )}
           <span className="mx-2" aria-hidden="true">/</span>
-          <span className="text-slate-800">{product.name}</span>
+          <span className="text-ink">{product.name}</span>
         </nav>
 
         <div>
@@ -306,7 +309,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
               {product.brand}
             </p>
           )}
-          <h1 className="mt-1 text-2xl font-bold text-slate-900 md:text-3xl">{product.name}</h1>
+          <h1 className="mt-1 text-2xl font-bold text-ink md:text-3xl">{product.name}</h1>
           {reviewSummary && (
             <p className="mt-2 text-sm text-slate-600">
               {reviewSummary.average.toFixed(1)} out of 5 · {reviewSummary.count}{" "}
@@ -319,15 +322,15 @@ export function ProductDetailView({ slug }: { slug: string }) {
           <ProductGallery urls={images} alt={product.name} />
 
           {/* Buying box: stays in view while the shopper scrolls on desktop */}
-          <aside className="mt-6 rounded-xl border border-slate-200 p-5 lg:sticky lg:top-40 lg:mt-0">
+          <aside className="mt-6 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5 lg:sticky lg:top-40 lg:mt-0">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="text-3xl font-bold text-slate-900">
+              <span className="text-3xl font-bold text-ink">
                 {variant ? formatNaira(priceKobo) : "Not available"}
               </span>
               {onSale && compareAt !== null && (
                 <>
                   <span className="text-slate-500 line-through">{formatNaira(compareAt)}</span>
-                  <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                  <span className="rounded bg-gold px-2 py-0.5 text-xs font-bold text-ink">
                     -{percent}%
                   </span>
                 </>
@@ -361,7 +364,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
             )}
 
             <div className="mt-5 flex items-center gap-4">
-              <span className="text-sm font-semibold text-slate-900">Quantity</span>
+              <span className="text-sm font-semibold text-ink">Quantity</span>
               <div className="flex items-center rounded-md border border-slate-300">
                 <button
                   type="button"
@@ -416,7 +419,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
             </div>
 
             <div className="mt-5 border-t border-slate-200 pt-4 text-sm">
-              <p className="font-semibold text-slate-900">Sold by {SITE.name}</p>
+              <p className="font-semibold text-ink">Sold by {SITE.name}</p>
               <ul className="mt-2 space-y-1 text-slate-700">
                 <li>✓ Genuine product</li>
                 <li>
@@ -435,7 +438,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
             </div>
 
             <div className="mt-5 border-t border-slate-200 pt-4 text-sm">
-              <p className="font-semibold text-slate-900">Delivery</p>
+              <p className="font-semibold text-ink">Delivery</p>
               {zones.length === 0 ? (
                 <p className="mt-2 text-slate-600">Delivery options are loading.</p>
               ) : (
@@ -470,10 +473,10 @@ export function ProductDetailView({ slug }: { slug: string }) {
                 role="tab"
                 aria-selected={tab === item.value}
                 onClick={() => setTab(item.value)}
-                className={`-mb-px border-b-2 pb-3 text-sm font-semibold ${
+                className={`-mb-px border-b-4 pb-3 text-sm font-semibold ${
                   tab === item.value
-                    ? "border-blue-700 text-blue-700"
-                    : "border-transparent text-slate-600 hover:text-slate-900"
+                    ? "border-gold text-ink"
+                    : "border-transparent text-slate-600 hover:text-ink"
                 }`}
               >
                 {item.label}
@@ -492,10 +495,10 @@ export function ProductDetailView({ slug }: { slug: string }) {
               (Object.keys(product.specifications).length === 0 ? (
                 <p className="text-sm text-slate-600">Specifications will be added soon.</p>
               ) : (
-                <dl className="divide-y divide-slate-200 rounded-xl border border-slate-200">
+                <dl className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
                   {Object.entries(product.specifications).map(([key, value]) => (
                     <div key={key} className="grid grid-cols-2 gap-4 px-4 py-3 text-sm">
-                      <dt className="font-medium text-slate-900">{key}</dt>
+                      <dt className="font-medium text-ink">{key}</dt>
                       <dd className="text-slate-700">{String(value)}</dd>
                     </div>
                   ))}
@@ -509,8 +512,11 @@ export function ProductDetailView({ slug }: { slug: string }) {
                 ) : (
                   <ul className="space-y-4">
                     {product.reviews.map((review) => (
-                      <li key={review.id} className="rounded-xl border border-slate-200 p-4">
-                        <p className="text-amber-500">
+                      <li
+                        key={review.id}
+                        className="rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-4"
+                      >
+                        <p className="text-gold">
                           {"★".repeat(review.rating)}
                           <span className="text-slate-300">{"★".repeat(5 - review.rating)}</span>
                         </p>
@@ -539,7 +545,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
       </section>
 
       {(related.length > 0 || catalogueStatus === "loading") && (
-        <div className="border-t border-slate-200">
+        <div className="border-t border-slate-200 bg-white">
           <ProductRow
             title="You may also like"
             subtitle={product.categoryName ? `More from ${product.categoryName}` : undefined}
@@ -550,11 +556,11 @@ export function ProductDetailView({ slug }: { slug: string }) {
       )}
 
       {/* Mobile buy bar: price and buttons stay visible while scrolling. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white px-4 py-3 shadow-lg lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t-4 border-gold bg-white px-4 py-3 shadow-lg lg:hidden">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-xs text-slate-500">{variant?.label || product.name}</p>
-            <p className="font-bold text-slate-900">
+            <p className="font-bold text-ink">
               {variant ? formatNaira(priceKobo) : "Not available"}
             </p>
           </div>
@@ -580,4 +586,4 @@ export function ProductDetailView({ slug }: { slug: string }) {
       </div>
     </div>
   );
-}
+    }
