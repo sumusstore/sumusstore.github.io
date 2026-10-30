@@ -8,7 +8,16 @@ import { safeNextPath } from "@/hooks/use-auth";
 import { supabase } from "@/lib/supabase";
 
 const BUTTON_CLASS =
-  "w-full rounded-lg bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300";
+  "w-full rounded-full bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300";
+
+/** The white card that holds each auth form. */
+function AuthCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-6 shadow-sm">
+      {children}
+    </div>
+  );
+}
 
 export function LoginForm() {
   const router = useRouter();
@@ -43,38 +52,40 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <Field
-        id="login-email"
-        label="Email"
-        type="email"
-        autoComplete="email"
-        required
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-      />
-      <Field
-        id="login-password"
-        label="Password"
-        type="password"
-        autoComplete="current-password"
-        required
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-      />
-      {error && <Notice tone="error">{error}</Notice>}
-      <button type="submit" disabled={busy} className={BUTTON_CLASS}>
-        {busy ? "Logging in…" : "Log in"}
-      </button>
-      <div className="flex flex-wrap justify-between gap-2 text-sm">
-        <Link href="/forgot-password/" className="font-medium text-blue-700 hover:underline">
-          Forgot password?
-        </Link>
-        <Link href="/register/" className="font-medium text-blue-700 hover:underline">
-          Create an account
-        </Link>
-      </div>
-    </form>
+    <AuthCard>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Field
+          id="login-email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+        <Field
+          id="login-password"
+          label="Password"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+        {error && <Notice tone="error">{error}</Notice>}
+        <button type="submit" disabled={busy} className={BUTTON_CLASS}>
+          {busy ? "Logging in…" : "Log in"}
+        </button>
+        <div className="flex flex-wrap justify-between gap-2 text-sm">
+          <Link href="/forgot-password/" className="font-semibold text-blue-700 hover:underline">
+            Forgot password?
+          </Link>
+          <Link href="/register/" className="font-semibold text-blue-700 hover:underline">
+            Create an account
+          </Link>
+        </div>
+      </form>
+    </AuthCard>
   );
 }
 
@@ -133,71 +144,75 @@ export function RegisterForm() {
 
   if (sentTo) {
     return (
-      <div className="space-y-4">
-        <Notice tone="info">
-          We've sent a confirmation link to <strong>{sentTo}</strong>. Open it on this phone to
-          activate your account.
-        </Notice>
-        <p className="text-sm text-slate-600">
-          Didn't get it? Check your spam folder. Already registered?{" "}
-          <Link href="/login/" className="font-medium text-blue-700 hover:underline">
-            Log in
-          </Link>
-          .
-        </p>
-      </div>
+      <AuthCard>
+        <div className="space-y-4">
+          <Notice tone="info">
+            We've sent a confirmation link to <strong>{sentTo}</strong>. Open it on this phone to
+            activate your account.
+          </Notice>
+          <p className="text-sm text-slate-600">
+            Didn't get it? Check your spam folder. Already registered?{" "}
+            <Link href="/login/" className="font-semibold text-blue-700 hover:underline">
+              Log in
+            </Link>
+            .
+          </p>
+        </div>
+      </AuthCard>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <Field
-        id="reg-name"
-        label="Full name"
-        autoComplete="name"
-        required
-        value={form.fullName}
-        onChange={(event) => update("fullName", event.target.value)}
-      />
-      <Field
-        id="reg-email"
-        label="Email"
-        type="email"
-        autoComplete="email"
-        required
-        value={form.email}
-        onChange={(event) => update("email", event.target.value)}
-      />
-      <Field
-        id="reg-phone"
-        label="Phone number"
-        type="tel"
-        autoComplete="tel"
-        required
-        value={form.phone}
-        onChange={(event) => update("phone", event.target.value)}
-      />
-      <Field
-        id="reg-password"
-        label="Password (at least 8 characters)"
-        type="password"
-        autoComplete="new-password"
-        required
-        minLength={8}
-        value={form.password}
-        onChange={(event) => update("password", event.target.value)}
-      />
-      {error && <Notice tone="error">{error}</Notice>}
-      <button type="submit" disabled={busy} className={BUTTON_CLASS}>
-        {busy ? "Creating account…" : "Create account"}
-      </button>
-      <p className="text-sm text-slate-600">
-        Already have an account?{" "}
-        <Link href="/login/" className="font-medium text-blue-700 hover:underline">
-          Log in
-        </Link>
-      </p>
-    </form>
+    <AuthCard>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Field
+          id="reg-name"
+          label="Full name"
+          autoComplete="name"
+          required
+          value={form.fullName}
+          onChange={(event) => update("fullName", event.target.value)}
+        />
+        <Field
+          id="reg-email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          value={form.email}
+          onChange={(event) => update("email", event.target.value)}
+        />
+        <Field
+          id="reg-phone"
+          label="Phone number"
+          type="tel"
+          autoComplete="tel"
+          required
+          value={form.phone}
+          onChange={(event) => update("phone", event.target.value)}
+        />
+        <Field
+          id="reg-password"
+          label="Password (at least 8 characters)"
+          type="password"
+          autoComplete="new-password"
+          required
+          minLength={8}
+          value={form.password}
+          onChange={(event) => update("password", event.target.value)}
+        />
+        {error && <Notice tone="error">{error}</Notice>}
+        <button type="submit" disabled={busy} className={BUTTON_CLASS}>
+          {busy ? "Creating account…" : "Create account"}
+        </button>
+        <p className="text-sm text-slate-600">
+          Already have an account?{" "}
+          <Link href="/login/" className="font-semibold text-blue-700 hover:underline">
+            Log in
+          </Link>
+        </p>
+      </form>
+    </AuthCard>
   );
 }
 
@@ -227,33 +242,37 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <Notice tone="info">
-        If an account exists for that email, a reset link is on its way. Check your spam folder too.
-      </Notice>
+      <AuthCard>
+        <Notice tone="info">
+          If an account exists for that email, a reset link is on its way. Check your spam folder too.
+        </Notice>
+      </AuthCard>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <Field
-        id="forgot-email"
-        label="Email"
-        type="email"
-        autoComplete="email"
-        required
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-      />
-      {error && <Notice tone="error">{error}</Notice>}
-      <button type="submit" disabled={busy} className={BUTTON_CLASS}>
-        {busy ? "Sending…" : "Send reset link"}
-      </button>
-      <p className="text-sm text-slate-600">
-        <Link href="/login/" className="font-medium text-blue-700 hover:underline">
-          Back to log in
-        </Link>
-      </p>
-    </form>
+    <AuthCard>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Field
+          id="forgot-email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+        {error && <Notice tone="error">{error}</Notice>}
+        <button type="submit" disabled={busy} className={BUTTON_CLASS}>
+          {busy ? "Sending…" : "Send reset link"}
+        </button>
+        <p className="text-sm text-slate-600">
+          <Link href="/login/" className="font-semibold text-blue-700 hover:underline">
+            Back to log in
+          </Link>
+        </p>
+      </form>
+    </AuthCard>
   );
 }
 
@@ -313,7 +332,11 @@ export function ResetPasswordForm() {
   }
 
   if (done) {
-    return <Notice tone="info">Your password is updated. Taking you to your account…</Notice>;
+    return (
+      <AuthCard>
+        <Notice tone="info">Your password is updated. Taking you to your account…</Notice>
+      </AuthCard>
+    );
   }
 
   if (status === "checking") {
@@ -322,31 +345,28 @@ export function ResetPasswordForm() {
 
   if (status === "expired") {
     return (
-      <div className="space-y-4">
-        <Notice tone="error">This reset link has expired or was already used.</Notice>
-        <Link href="/forgot-password/" className="font-semibold text-blue-700 hover:underline">
-          Request a new link
-        </Link>
-      </div>
+      <AuthCard>
+        <div className="space-y-4">
+          <Notice tone="error">This reset link has expired or was already used.</Notice>
+          <Link href="/forgot-password/" className="font-semibold text-blue-700 hover:underline">
+            Request a new link
+          </Link>
+        </div>
+      </AuthCard>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <Field
-        id="new-password"
-        label="New password (at least 8 characters)"
-        type="password"
-        autoComplete="new-password"
-        required
-        minLength={8}
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-      />
-      {error && <Notice tone="error">{error}</Notice>}
-      <button type="submit" disabled={busy} className={BUTTON_CLASS}>
-        {busy ? "Saving…" : "Save new password"}
-      </button>
-    </form>
-  );
-}
+    <AuthCard>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Field
+          id="new-password"
+          label="New password (at least 8 characters)"
+          type="password"
+          autoComplete="new-password"
+          required
+          minLength={8}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+        {error && <Notice tone="error">{error}</Notice>}
