@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { CompareBar } from "@/components/compare-bar";
-import { MobileTabBar } from "@/components/mobile-tab-bar";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { WishlistSync } from "@/components/wishlist-sync";
@@ -22,14 +21,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en-NG">
-      {/* On phones the body has room at the bottom for the tab bar. */}
-      <body className="min-h-screen bg-paper pb-16 text-ink antialiased md:pb-0">
+      <body className="min-h-screen bg-paper text-ink antialiased">
         <WishlistSync />
         <SiteHeader />
         {children}
         <SiteFooter />
         <CompareBar />
-        <MobileTabBar />
       </body>
     </html>
   );
