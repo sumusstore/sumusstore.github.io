@@ -20,7 +20,7 @@ import { MobileMenu } from "@/components/mobile-menu";
 function CountBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="absolute -right-0.5 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-xs font-bold text-white">
+    <span className="absolute -right-0.5 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-xs font-bold text-ink">
       {count > 99 ? "99+" : count}
     </span>
   );
@@ -44,7 +44,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 bg-white shadow-sm">
       {/* Top strip: sign in and helpful links */}
-      <div className="border-b border-slate-200 bg-slate-50 text-xs text-slate-700">
+      <div className="border-b border-slate-200 bg-paper text-xs text-ink">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-1.5">
           <p>
             Hi!{" "}
@@ -66,7 +66,7 @@ export function SiteHeader() {
             <Link href="/contact/" className="hover:text-blue-700">
               Help and contact
             </Link>
-            <a href={SITE.phoneLink} className="font-semibold text-slate-900">
+            <a href={SITE.phoneLink} className="font-semibold text-ink">
               {SITE.phoneDisplay}
             </a>
           </div>
@@ -87,7 +87,7 @@ export function SiteHeader() {
           </button>
 
           <Link href="/" className="shrink-0 text-2xl font-extrabold tracking-tight text-blue-700">
-            {SITE.name}
+            <span className="border-b-4 border-gold pb-0.5">{SITE.name}</span>
           </Link>
 
           <form
@@ -102,7 +102,7 @@ export function SiteHeader() {
             <select
               id="header-category"
               name="cat"
-              className="hidden max-w-40 shrink-0 border-r border-slate-300 bg-slate-100 px-3 text-sm text-slate-700 md:block"
+              className="hidden max-w-40 shrink-0 border-r border-slate-300 bg-slate-100 px-3 text-sm text-ink md:block"
             >
               <option value="">All categories</option>
               {tree.map((node) => (
@@ -138,7 +138,7 @@ export function SiteHeader() {
             <Link
               href="/account/"
               aria-label="My account"
-              className="flex flex-col items-center gap-0.5 p-1 text-xs text-slate-800 hover:text-blue-700"
+              className="flex flex-col items-center gap-0.5 p-1 text-xs text-ink hover:text-blue-700"
             >
               <UserIcon className="h-6 w-6" />
               <span className="hidden lg:block">Account</span>
@@ -146,7 +146,7 @@ export function SiteHeader() {
             <Link
               href="/wishlist/"
               aria-label={`Wishlist, ${shownWishlistCount} items`}
-              className="relative flex flex-col items-center gap-0.5 p-1 text-xs text-slate-800 hover:text-blue-700"
+              className="relative flex flex-col items-center gap-0.5 p-1 text-xs text-ink hover:text-blue-700"
             >
               <HeartIcon className="h-6 w-6" />
               <span className="hidden lg:block">Wishlist</span>
@@ -155,7 +155,7 @@ export function SiteHeader() {
             <Link
               href="/cart/"
               aria-label={`Cart, ${shownCartCount} items`}
-              className="relative flex flex-col items-center gap-0.5 p-1 text-xs text-slate-800 hover:text-blue-700"
+              className="relative flex flex-col items-center gap-0.5 p-1 text-xs text-ink hover:text-blue-700"
             >
               <CartIcon className="h-6 w-6" />
               <span className="hidden lg:block">Cart</span>
@@ -177,7 +177,7 @@ export function SiteHeader() {
         }}
       >
         <div className="mx-auto flex max-w-6xl items-center gap-6 px-4">
-          <span className="flex shrink-0 items-center gap-1 py-3 text-sm font-semibold text-slate-900">
+          <span className="flex shrink-0 items-center gap-1 py-3 text-sm font-semibold text-ink">
             Shop by category
             <ChevronDownIcon className="h-4 w-4" />
           </span>
@@ -199,7 +199,7 @@ export function SiteHeader() {
                 >
                   <Link
                     href={`/category/${node.slug}/`}
-                    className="block py-3 text-sm text-slate-700 hover:text-blue-700 focus:text-blue-700"
+                    className="block py-3 text-sm text-ink hover:text-blue-700 focus:text-blue-700"
                   >
                     {node.name}
                   </Link>
@@ -219,7 +219,7 @@ export function SiteHeader() {
                 <div key={child.id}>
                   <Link
                     href={`/category/${child.slug}/`}
-                    className="font-semibold text-slate-900 hover:text-blue-700"
+                    className="font-semibold text-ink hover:text-blue-700"
                   >
                     {child.name}
                   </Link>
