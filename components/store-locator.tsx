@@ -84,8 +84,8 @@ export function StoreLocator() {
 
   if (stores.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center">
-        <p className="font-semibold text-slate-900">Our store list is being updated.</p>
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+        <p className="font-semibold text-ink">Our store list is being updated.</p>
         <p className="mt-1 text-sm text-slate-600">
           Message us on WhatsApp to ask about pickup options.
         </p>
@@ -103,9 +103,9 @@ export function StoreLocator() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <label htmlFor="state-filter" className="block text-sm font-medium text-slate-800">
-          State
+      <div className="flex flex-wrap items-center gap-3">
+        <label htmlFor="state-filter" className="text-sm font-semibold text-ink">
+          Filter by state
         </label>
         <select
           id="state-filter"
@@ -114,7 +114,7 @@ export function StoreLocator() {
             setStateFilter(event.target.value);
             setSelectedId(null);
           }}
-          className="mt-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          className="rounded-full border-2 border-blue-700 bg-white px-4 py-2 text-sm font-medium text-ink focus:outline-none focus:ring-2 focus:ring-blue-200"
         >
           {states.map((state) => (
             <option key={state} value={state}>
@@ -134,13 +134,13 @@ export function StoreLocator() {
                   type="button"
                   onClick={() => setSelectedId(store.id)}
                   aria-pressed={isSelected}
-                  className={`w-full rounded-xl border p-4 text-left ${
+                  className={`w-full rounded-xl border border-t-4 bg-white p-4 text-left ${
                     isSelected
-                      ? "border-blue-700 bg-blue-50"
-                      : "border-slate-200 hover:border-slate-400"
+                      ? "border-blue-700 border-t-gold ring-1 ring-blue-700"
+                      : "border-slate-200 border-t-gold/60 hover:border-slate-400"
                   }`}
                 >
-                  <span className="block font-semibold text-slate-900">{store.name}</span>
+                  <span className="block font-semibold text-ink">{store.name}</span>
                   <span className="block text-sm text-slate-600">
                     {store.address}, {store.state}
                   </span>
@@ -156,7 +156,7 @@ export function StoreLocator() {
         {selected && (
           <div className="space-y-4">
             {selected.latitude !== null && selected.longitude !== null ? (
-              <div className="aspect-[4/3] overflow-hidden rounded-xl border border-slate-200">
+              <div className="aspect-[4/3] overflow-hidden rounded-xl border border-slate-200 bg-white">
                 <iframe
                   title={`Map showing ${selected.name}`}
                   src={mapUrl(selected.latitude, selected.longitude)}
@@ -166,40 +166,40 @@ export function StoreLocator() {
                 />
               </div>
             ) : (
-              <div className="flex aspect-[4/3] items-center justify-center rounded-xl bg-slate-100 p-6 text-center text-sm text-slate-600">
+              <div className="flex aspect-[4/3] items-center justify-center rounded-xl bg-paper p-6 text-center text-sm text-slate-600">
                 The map for this branch isn&apos;t available yet. Use the address or call the branch.
               </div>
             )}
 
-            <div>
-              <p className="font-semibold text-slate-900">{selected.name}</p>
-              <p className="text-sm text-slate-700">
+            <div className="rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5">
+              <p className="font-bold text-ink">{selected.name}</p>
+              <p className="mt-1 text-sm text-slate-700">
                 {selected.address}, {selected.state}
               </p>
               {selected.opening_hours && (
-                <p className="text-sm text-slate-600">{selected.opening_hours}</p>
+                <p className="mt-1 text-sm text-slate-600">{selected.opening_hours}</p>
               )}
-            </div>
 
-            <div className="flex flex-wrap gap-3">
-              {selected.latitude !== null && selected.longitude !== null && (
-                <a
-                  href={directionsUrl(selected.latitude, selected.longitude)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
-                >
-                  Get directions
-                </a>
-              )}
-              {selected.phone && (
-                <a
-                  href={`tel:${selected.phone.replace(/\s/g, "")}`}
-                  className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-800 hover:border-slate-500"
-                >
-                  Call this branch
-                </a>
-              )}
+              <div className="mt-4 flex flex-wrap gap-3">
+                {selected.latitude !== null && selected.longitude !== null && (
+                  <a
+                    href={directionsUrl(selected.latitude, selected.longitude)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
+                  >
+                    Get directions
+                  </a>
+                )}
+                {selected.phone && (
+                  <a
+                    href={`tel:${selected.phone.replace(/\s/g, "")}`}
+                    className="rounded-full border border-blue-700 px-5 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                  >
+                    Call this branch
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         )}
