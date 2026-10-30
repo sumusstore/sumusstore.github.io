@@ -33,7 +33,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 const BUTTON_CLASS =
-  "w-full rounded-lg bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300 sm:w-auto";
+  "w-full rounded-full bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300 sm:w-auto";
 
 /** Reads the message the function sends back, so the customer sees what to fix. */
 async function readError(error: unknown): Promise<string> {
@@ -82,8 +82,11 @@ export function OrderTracking() {
   const info = order ? statusInfo(order.status) : null;
 
   return (
-    <div>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-6"
+      >
         <Field
           id="track-number"
           label="Order number"
@@ -109,8 +112,8 @@ export function OrderTracking() {
       </form>
 
       {order && info && (
-        <div className="mt-8 rounded-xl border border-slate-200 p-5">
-          <p className="font-mono text-sm font-semibold text-slate-900">{order.orderNumber}</p>
+        <div className="rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-6">
+          <p className="font-mono text-sm font-semibold text-ink">{order.orderNumber}</p>
           <p className="text-xs text-slate-500">
             Placed{" "}
             {new Date(order.createdAt).toLocaleDateString("en-NG", {
@@ -120,9 +123,9 @@ export function OrderTracking() {
             })}
           </p>
 
-          <div className="mt-4 rounded-lg bg-slate-50 p-4">
-            <p className="font-semibold text-slate-900">{info.label}</p>
-            <p className="mt-1 text-sm text-slate-600">{info.detail}</p>
+          <div className="mt-4 rounded-lg bg-blue-50 p-4">
+            <p className="font-bold text-blue-700">{info.label}</p>
+            <p className="mt-1 text-sm text-slate-700">{info.detail}</p>
           </div>
 
           <ul className="mt-4 divide-y divide-slate-200 text-sm">
@@ -132,7 +135,7 @@ export function OrderTracking() {
                   {line.quantity} × {line.productName}
                   {line.variantLabel ? ` (${line.variantLabel})` : ""}
                 </span>
-                <span className="shrink-0 font-medium">
+                <span className="shrink-0 font-medium text-ink">
                   {formatNaira(line.unitPriceKobo * line.quantity)}
                 </span>
               </li>
@@ -142,13 +145,15 @@ export function OrderTracking() {
           <dl className="mt-4 space-y-2 border-t border-slate-200 pt-4 text-sm">
             <div className="flex justify-between">
               <dt className="text-slate-600">Subtotal</dt>
-              <dd>{formatNaira(order.subtotalKobo)}</dd>
+              <dd className="text-ink">{formatNaira(order.subtotalKobo)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-slate-600">Delivery</dt>
-              <dd>{order.deliveryFeeKobo === 0 ? "Free" : formatNaira(order.deliveryFeeKobo)}</dd>
+              <dd className="text-ink">
+                {order.deliveryFeeKobo === 0 ? "Free" : formatNaira(order.deliveryFeeKobo)}
+              </dd>
             </div>
-            <div className="flex justify-between border-t border-slate-200 pt-2 font-bold">
+            <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-ink">
               <dt>Total</dt>
               <dd>{formatNaira(order.totalKobo)}</dd>
             </div>
@@ -172,7 +177,7 @@ export function OrderTracking() {
               )}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 block rounded-lg bg-green-600 px-6 py-3 text-center font-semibold text-white hover:bg-green-700"
+              className="mt-4 block rounded-full bg-green-600 px-6 py-3 text-center font-semibold text-white hover:bg-green-700"
             >
               Send proof on WhatsApp
             </a>
@@ -180,13 +185,13 @@ export function OrderTracking() {
         </div>
       )}
 
-      <p className="mt-8 text-sm text-slate-600">
-        Can't find your order?{" "}
+      <p className="text-sm text-slate-600">
+        Can&apos;t find your order?{" "}
         <a
           href={whatsappLink("Hello, I can't find my order. Can you help?")}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-blue-700 hover:underline"
+          className="font-semibold text-blue-700 hover:underline"
         >
           Message us on WhatsApp
         </a>
@@ -194,4 +199,4 @@ export function OrderTracking() {
       </p>
     </div>
   );
-}
+          }
