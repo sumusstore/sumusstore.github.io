@@ -1,1 +1,23 @@
 @import "tailwindcss";
+
+/* Store colours. Change the values here to change the look of the whole site. */
+@theme {
+  /* Main colour: deep teal. These override Tailwind's blue, so every "blue" class on the site shows teal. */
+  --color-blue-50: #eef8f7;
+  --color-blue-100: #d3efec;
+  --color-blue-200: #a9ded9;
+  --color-blue-300: #74c7c0;
+  --color-blue-400: #3daaa2;
+  --color-blue-500: #1f8c84;
+  --color-blue-600: #137670;
+  --color-blue-700: #0f5c5a;
+  --color-blue-800: #0c4a49;
+  --color-blue-900: #093a39;
+
+  /* Accent: gold, for highlights and badges. Use dark text on gold, not white. */
+  --color-gold: #c9a227;
+
+  /* Page background and main text. */
+  --color-paper: #faf7f0;
+  --color-ink: #1f2937;
+}
