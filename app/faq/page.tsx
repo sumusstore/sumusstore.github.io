@@ -9,24 +9,29 @@ export const metadata: Metadata = {
 
 export default function FaqPage() {
   return (
-    <section className="mx-auto max-w-3xl px-4 py-10">
-      <h1 className="text-3xl font-bold text-slate-900">Frequently asked questions</h1>
-      <p className="mt-2 text-slate-600">
-        Can&apos;t find your answer?{" "}
-        <Link href="/contact/" className="font-medium text-blue-700 hover:underline">
-          Contact us
-        </Link>
-        .
-      </p>
+    <section className="mx-auto max-w-3xl px-4 py-8">
+      <div className="rounded-xl bg-blue-700 p-6 text-white md:p-8">
+        <h1 className="text-2xl font-bold md:text-3xl">Frequently asked questions</h1>
+        <p className="mt-2 text-blue-50">
+          Can&apos;t find your answer?{" "}
+          <Link
+            href="/contact/"
+            className="font-semibold text-white underline decoration-gold decoration-2 underline-offset-4"
+          >
+            Contact us
+          </Link>
+          .
+        </p>
+      </div>
 
-      <div className="mt-8 divide-y divide-slate-200 rounded-xl border border-slate-200">
+      <div className="mt-6 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
         {FAQ_ITEMS.map((item) => (
-          <details key={item.question} className="group p-4">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
+          <details key={item.question} className="group p-5">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-ink [&::-webkit-details-marker]:hidden">
               {item.question}
               <span
                 aria-hidden="true"
-                className="text-xl leading-none text-slate-500 transition-transform group-open:rotate-45"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold/20 text-lg leading-none text-ink transition-transform group-open:rotate-45"
               >
                 +
               </span>
