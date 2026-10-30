@@ -29,45 +29,65 @@ const WHY_US = [
 
 export default function AboutPage() {
   return (
-    <article className="mx-auto max-w-4xl px-4 py-10">
-      <h1 className="text-3xl font-bold text-slate-900">About {SITE.name}</h1>
+    <>
+      <section className="bg-blue-700 text-white">
+        <div className="mx-auto max-w-4xl px-4 py-12 md:py-16">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">About us</p>
+          <h1 className="mt-2 text-3xl font-bold md:text-4xl">About {SITE.name}</h1>
+          <span aria-hidden="true" className="mt-4 block h-1 w-16 rounded bg-gold" />
+        </div>
+      </section>
 
-      <div className="mt-6 space-y-4 leading-relaxed text-slate-700">
-        <p>
-          {SITE.name} sells phones, electronics, home appliances, power and solar products, and smart
-          home devices to customers across Nigeria.
-        </p>
-        <p>
-          We think buying electronics should feel simple and safe. That means clear prices in naira,
-          honest product details, and people you can reach when something needs fixing.
-        </p>
-        <p>
-          Our team is here to help you choose, order and get support, whether you shop online or visit
-          one of our stores.
-        </p>
-      </div>
+      <article className="mx-auto max-w-4xl px-4 py-10">
+        <div className="space-y-4 leading-relaxed text-slate-700">
+          <p>
+            {SITE.name} sells phones, electronics, home appliances, power and solar products, and smart
+            home devices to customers across Nigeria.
+          </p>
+          <p>
+            We think buying electronics should feel simple and safe. That means clear prices in naira,
+            honest product details, and people you can reach when something needs fixing.
+          </p>
+          <p>
+            Our team is here to help you choose, order and get support, whether you shop online or visit
+            one of our stores.
+          </p>
+        </div>
 
-      <h2 className="mt-12 text-xl font-bold text-slate-900">Why shop with us</h2>
-      <div className="mt-6 grid gap-6 sm:grid-cols-2">
-        {WHY_US.map((point) => (
-          <div key={point.title} className="rounded-xl border border-slate-200 p-5">
-            <p className="font-semibold text-slate-900">{point.title}</p>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">{point.text}</p>
-          </div>
-        ))}
-      </div>
+        <h2 className="mt-12 text-xl font-bold text-ink">Why shop with us</h2>
+        <div className="mt-6 grid gap-6 sm:grid-cols-2">
+          {WHY_US.map((point) => (
+            <div
+              key={point.title}
+              className="rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5"
+            >
+              <p className="font-semibold text-ink">{point.title}</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{point.text}</p>
+            </div>
+          ))}
+        </div>
 
-      <div className="mt-10 flex flex-wrap gap-6 text-sm font-semibold">
-        <Link href="/stores/" className="text-blue-700 hover:underline">
-          Find a store
-        </Link>
-        <Link href="/contact/" className="text-blue-700 hover:underline">
-          Contact us
-        </Link>
-        <Link href="/bulk/" className="text-blue-700 hover:underline">
-          Bulk sales
-        </Link>
-      </div>
-    </article>
+        <div className="mt-10 flex flex-wrap gap-3 text-sm font-semibold">
+          <Link
+            href="/stores/"
+            className="rounded-full bg-blue-700 px-5 py-2.5 text-white hover:bg-blue-800"
+          >
+            Find a store
+          </Link>
+          <Link
+            href="/contact/"
+            className="rounded-full border border-blue-700 px-5 py-2.5 text-blue-700 hover:bg-blue-50"
+          >
+            Contact us
+          </Link>
+          <Link
+            href="/bulk/"
+            className="rounded-full border border-blue-700 px-5 py-2.5 text-blue-700 hover:bg-blue-50"
+          >
+            Bulk sales
+          </Link>
+        </div>
+      </article>
+    </>
   );
 }
