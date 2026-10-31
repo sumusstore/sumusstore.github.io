@@ -109,7 +109,8 @@ export function ProductDetailView({ slug }: { slug: string }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const { product, status } = useProductDetail(slug);
-  const { products: catalogue } = useCatalogue();
+  const [catalogue, setCatalogue] = useState<ReturnType<typeof useCatalogue>["products"]>([]);
+  const { products: catalogueProducts, status: catalogueStatus } = useCatalogue();
 
   const addItem = useCartStore((state) => state.addItem);
   const toggleWishlist = useWishlistStore((state) => state.toggleItem);
@@ -119,6 +120,10 @@ export function ProductDetailView({ slug }: { slug: string }) {
   const [justAdded, setJustAdded] = useState(false);
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [modal, setModal] = useState<ModalName>(null);
+
+  useEffect(() => {
+    setCatalogue(catalogueProducts);
+  }, [catalogueProducts]);
 
   useEffect(() => {
     let active = true;
@@ -344,6 +349,214 @@ export function ProductDetailView({ slug }: { slug: string }) {
     </button>
   );
 
+  // The buying panel is written once and placed in two spots: under the photo on phones,
+  // and beside the photo on laptops. The `lg:` classes decide which one shows.
+  const buyingPanel = (
+    <>
+      <h1 className="text-2xl font-bold leading-snug text-ink md:text-3xl">{product.name}</h1>
+
+      <div className="mt-4 flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-700 text-lg font-extrabold text-white"
+          >
+            {SITE.name.charAt(0)}
+          </span>
+          <div className="min-w-0">
+            <Link href="/about/" className="block font-bold text-ink hover:text-blue-700 hover:underline">
+              {SITE.name}
+            </Link>
+            <p className="text-sm text-slate-600">
+              {reviewSummary
+                ? `${reviewSummary.average.toFixed(1)} out of 5 · ${reviewSummary.count} ${
+                    reviewSummary.count === 1 ? "review" : "reviews"
+                  }`
+                : "Genuine products · Warranty on every item"}
+            </p>
+          </div>
+        </div>
+        <a
+          href={messageLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 rounded-full border border-slate-400 px-5 py-2 text-sm font-semibold text-ink hover:border-slate-700"
+        >
+          Message
+        </a>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="text-3xl font-bold text-ink">
+          {variant ? formatNaira(priceKobo) : "Not available"}
+        </span>
+        {onSale && compareAt !== null && (
+          <>
+            <span className="text-slate-500 line-through">{formatNaira(compareAt)}</span>
+            <span className="rounded bg-gold px-2 py-0.5 text-xs font-bold text-ink">-{percent}%</span>
+          </>
+        )}
+      </div>
+
+      {saleEnds && timerActive && (
+        <div className="mt-2">
+          <Countdown endsAt={saleEnds} />
+        </div>
+      )}
+
+      <p className={`mt-2 text-sm font-semibold ${stockInfo.className}`}>{stockInfo.text}</p>
+
+      <p className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+        Condition <span className="font-bold text-ink">New</span>
+        <button
+          type="button"
+          onClick={() => setModal("condition")}
+          aria-label="What new condition means"
+          className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-500 text-xs font-bold text-slate-600 hover:border-ink hover:text-ink"
+        >
+          i
+        </button>
+      </p>
+
+      {storageOptions.length > 0 && (
+        <div className="mt-4">
+          <VariantPicker
+            label="Storage"
+            options={storageOptions}
+            value={variant?.storage ?? null}
+            onChange={(value) => choose({ storage: value })}
+          />
+        </div>
+      )}
+
+      {colourOptions.length > 0 && (
+        <div className="mt-4">
+          <VariantPicker
+            label="Colour"
+            options={colourOptions}
+            value={variant?.colour ?? null}
+            onChange={(value) => choose({ colour: value })}
+          />
+        </div>
+      )}
+
+      <div className="mt-4">
+        <VariantPicker
+          label="Quantity"
+          options={quantityOptions}
+          value={soldOut ? null : String(safeQuantity)}
+          onChange={(value) => setQuantity(Number(value))}
+          placeholder="0"
+        />
+      </div>
+
+      <div className="mt-6 space-y-3">
+        <button
+          type="button"
+          onClick={handleBuyNow}
+          disabled={soldOut}
+          className="w-full rounded-full bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300"
+        >
+          Buy it now
+        </button>
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          disabled={soldOut}
+          className="w-full rounded-full border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50 disabled:border-slate-300 disabled:text-slate-400"
+        >
+          {soldOut ? "Sold out" : justAdded ? "Added to cart" : "Add to cart"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setModal("offer")}
+          className="w-full rounded-full border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50"
+        >
+          Make offer
+        </button>
+        <button
+          type="button"
+          onClick={handleWishlist}
+          aria-pressed={wished}
+          className="flex w-full items-center justify-center gap-2 rounded-full border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50"
+        >
+          <HeartIcon className={`h-5 w-5 ${wished ? "fill-red-600 text-red-600" : ""}`} />
+          {wished ? "Saved to wishlist" : "Save to wishlist"}
+        </button>
+      </div>
+
+      <section className="mt-6 border-t border-slate-200 pt-5">
+        <h2 className="text-base font-bold text-ink">Shipping, returns, and payments</h2>
+        <dl className="mt-3 divide-y divide-slate-200 text-sm">
+          <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-3">
+            <dt className="text-slate-500">Shipping</dt>
+            <dd className="text-ink">
+              {zones.length === 0 && <p>Loading delivery options…</p>}
+              {lagosZone && (
+                <p>
+                  Lagos: {feeText(lagosZone)} · {deliveryTimeline(lagosZone)}
+                </p>
+              )}
+              {outsideZone && (
+                <p>
+                  Outside Lagos: {feeText(outsideZone)} · {deliveryTimeline(outsideZone)}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setModal("delivery")}
+                className="mt-1 font-semibold text-blue-700 hover:underline"
+              >
+                See delivery details
+              </button>
+            </dd>
+          </div>
+
+          <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-3">
+            <dt className="text-slate-500">Returns</dt>
+            <dd className="text-ink">
+              Faulty or wrong items: contact us within {POLICY_NUMBERS.returnWindowDays} days of
+              delivery.{" "}
+              <Link href="/returns/" className="font-semibold text-blue-700 hover:underline">
+                See details
+              </Link>
+            </dd>
+          </div>
+
+          <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-3">
+            <dt className="text-slate-500">Payments</dt>
+            <dd>
+              <ul className="flex flex-wrap gap-2">
+                {PAYMENT_METHODS.map((method) => (
+                  <li
+                    key={method}
+                    className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-ink"
+                  >
+                    {method}
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="mt-6 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5">
+        <h2 className="text-base font-bold text-ink">Shop with confidence</h2>
+        <ul className="mt-3 space-y-2 text-sm text-slate-700">
+          <li>✓ Genuine products, sold by {SITE.name}</li>
+          <li>
+            ✓ Warranty on every item.{" "}
+            <Link href="/warranty/" className="font-semibold text-blue-700 hover:underline">
+              Details
+            </Link>
+          </li>
+          <li>✓ Support by phone and WhatsApp after you buy</li>
+        </ul>
+      </section>
+    </>
+  );
+
   return (
     <div>
       <section className="mx-auto max-w-6xl px-4 py-6">
@@ -363,7 +576,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
           <span className="text-ink">{product.name}</span>
         </nav>
 
-        {/* Top band: people who viewed this item also viewed */}
+        {/* People who viewed this item also viewed: shows on phones and laptops */}
         {topPicks.length > 0 && (
           <section className="rounded-xl border border-slate-200 bg-white p-4 md:p-5">
             <h2 className="text-base font-bold text-ink">People who viewed this item also viewed</h2>
@@ -397,8 +610,9 @@ export function ProductDetailView({ slug }: { slug: string }) {
           </section>
         )}
 
+        {/* Phones: one column, photo first, then the buying panel.
+            Laptops (lg and up): photo on the left, buying panel on the right. */}
         <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start lg:gap-10">
-          {/* Left column: photos, share, similar items */}
           <div className="min-w-0">
             <ProductGallery urls={images} alt={product.name} action={heartButton} />
 
@@ -411,6 +625,10 @@ export function ProductDetailView({ slug }: { slug: string }) {
               <ShareIcon className="h-5 w-5" />
             </button>
 
+            {/* On phones the buying panel follows the photo here. */}
+            <div className="mt-6 lg:hidden">{buyingPanel}</div>
+
+            {/* Similar items: shows on phones and laptops */}
             {similar.length > 0 && (
               <section className="mt-10 border-t border-slate-200 pt-8">
                 <h2 className="text-xl font-bold text-ink">Similar items</h2>
@@ -423,210 +641,8 @@ export function ProductDetailView({ slug }: { slug: string }) {
             )}
           </div>
 
-          {/* Right column: buying panel, shipping and confidence */}
-          <aside className="mt-6 lg:mt-0">
-            <h1 className="text-2xl font-bold leading-snug text-ink md:text-3xl">{product.name}</h1>
-
-            <div className="mt-4 flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <span
-                  aria-hidden="true"
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-700 text-lg font-extrabold text-white"
-                >
-                  {SITE.name.charAt(0)}
-                </span>
-                <div className="min-w-0">
-                  <Link href="/about/" className="block font-bold text-ink hover:text-blue-700 hover:underline">
-                    {SITE.name}
-                  </Link>
-                  <p className="text-sm text-slate-600">
-                    {reviewSummary
-                      ? `${reviewSummary.average.toFixed(1)} out of 5 · ${reviewSummary.count} ${
-                          reviewSummary.count === 1 ? "review" : "reviews"
-                        }`
-                      : "Genuine products · Warranty on every item"}
-                  </p>
-                </div>
-              </div>
-              <a
-                href={messageLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 rounded-full border border-slate-400 px-5 py-2 text-sm font-semibold text-ink hover:border-slate-700"
-              >
-                Message
-              </a>
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="text-3xl font-bold text-ink">
-                {variant ? formatNaira(priceKobo) : "Not available"}
-              </span>
-              {onSale && compareAt !== null && (
-                <>
-                  <span className="text-slate-500 line-through">{formatNaira(compareAt)}</span>
-                  <span className="rounded bg-gold px-2 py-0.5 text-xs font-bold text-ink">-{percent}%</span>
-                </>
-              )}
-            </div>
-
-            {saleEnds && timerActive && (
-              <div className="mt-2">
-                <Countdown endsAt={saleEnds} />
-              </div>
-            )}
-
-            <p className={`mt-2 text-sm font-semibold ${stockInfo.className}`}>{stockInfo.text}</p>
-
-            <p className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
-              Condition <span className="font-bold text-ink">New</span>
-              <button
-                type="button"
-                onClick={() => setModal("condition")}
-                aria-label="What new condition means"
-                className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-500 text-xs font-bold text-slate-600 hover:border-ink hover:text-ink"
-              >
-                i
-              </button>
-            </p>
-
-            {storageOptions.length > 0 && (
-              <div className="mt-4">
-                <VariantPicker
-                  label="Storage"
-                  options={storageOptions}
-                  value={variant?.storage ?? null}
-                  onChange={(value) => choose({ storage: value })}
-                />
-              </div>
-            )}
-
-            {colourOptions.length > 0 && (
-              <div className="mt-4">
-                <VariantPicker
-                  label="Colour"
-                  options={colourOptions}
-                  value={variant?.colour ?? null}
-                  onChange={(value) => choose({ colour: value })}
-                />
-              </div>
-            )}
-
-            <div className="mt-4">
-              <VariantPicker
-                label="Quantity"
-                options={quantityOptions}
-                value={soldOut ? null : String(safeQuantity)}
-                onChange={(value) => setQuantity(Number(value))}
-                placeholder="0"
-              />
-            </div>
-
-            <div className="mt-6 space-y-3">
-              <button
-                type="button"
-                onClick={handleBuyNow}
-                disabled={soldOut}
-                className="w-full rounded-full bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300"
-              >
-                Buy it now
-              </button>
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                disabled={soldOut}
-                className="w-full rounded-full border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50 disabled:border-slate-300 disabled:text-slate-400"
-              >
-                {soldOut ? "Sold out" : justAdded ? "Added to cart" : "Add to cart"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setModal("offer")}
-                className="w-full rounded-full border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50"
-              >
-                Make offer
-              </button>
-              <button
-                type="button"
-                onClick={handleWishlist}
-                aria-pressed={wished}
-                className="flex w-full items-center justify-center gap-2 rounded-full border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50"
-              >
-                <HeartIcon className={`h-5 w-5 ${wished ? "fill-red-600 text-red-600" : ""}`} />
-                {wished ? "Saved to wishlist" : "Save to wishlist"}
-              </button>
-            </div>
-
-            <section className="mt-6 border-t border-slate-200 pt-5">
-              <h2 className="text-base font-bold text-ink">Shipping, returns, and payments</h2>
-              <dl className="mt-3 divide-y divide-slate-200 text-sm">
-                <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-3">
-                  <dt className="text-slate-500">Shipping</dt>
-                  <dd className="text-ink">
-                    {zones.length === 0 && <p>Loading delivery options…</p>}
-                    {lagosZone && (
-                      <p>
-                        Lagos: {feeText(lagosZone)} · {deliveryTimeline(lagosZone)}
-                      </p>
-                    )}
-                    {outsideZone && (
-                      <p>
-                        Outside Lagos: {feeText(outsideZone)} · {deliveryTimeline(outsideZone)}
-                      </p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setModal("delivery")}
-                      className="mt-1 font-semibold text-blue-700 hover:underline"
-                    >
-                      See delivery details
-                    </button>
-                  </dd>
-                </div>
-
-                <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-3">
-                  <dt className="text-slate-500">Returns</dt>
-                  <dd className="text-ink">
-                    Faulty or wrong items: contact us within {POLICY_NUMBERS.returnWindowDays} days of
-                    delivery.{" "}
-                    <Link href="/returns/" className="font-semibold text-blue-700 hover:underline">
-                      See details
-                    </Link>
-                  </dd>
-                </div>
-
-                <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-3">
-                  <dt className="text-slate-500">Payments</dt>
-                  <dd>
-                    <ul className="flex flex-wrap gap-2">
-                      {PAYMENT_METHODS.map((method) => (
-                        <li
-                          key={method}
-                          className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-ink"
-                        >
-                          {method}
-                        </li>
-                      ))}
-                    </ul>
-                  </dd>
-                </div>
-              </dl>
-            </section>
-
-            <section className="mt-6 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5">
-              <h2 className="text-base font-bold text-ink">Shop with confidence</h2>
-              <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                <li>✓ Genuine products, sold by {SITE.name}</li>
-                <li>
-                  ✓ Warranty on every item.{" "}
-                  <Link href="/warranty/" className="font-semibold text-blue-700 hover:underline">
-                    Details
-                  </Link>
-                </li>
-                <li>✓ Support by phone and WhatsApp after you buy</li>
-              </ul>
-            </section>
-          </aside>
+          {/* On laptops the buying panel sits beside the photo, and stays in view. */}
+          <aside className="hidden lg:sticky lg:top-40 lg:block">{buyingPanel}</aside>
         </div>
 
         {/* About this item: two rows that open pop-up boxes */}
