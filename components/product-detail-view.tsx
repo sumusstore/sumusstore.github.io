@@ -1,13 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Countdown } from "@/components/countdown";
 import { ChevronDownIcon, HeartIcon } from "@/components/icons";
 import { Modal } from "@/components/modal";
+import { ProductCard } from "@/components/product-card";
 import { ProductGallery } from "@/components/product-gallery";
-import { ProductRow } from "@/components/product-row";
 import { VariantPicker, type PickerOption } from "@/components/variant-picker";
 import { useCatalogue } from "@/hooks/use-catalogue";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -15,6 +16,7 @@ import { useProductDetail, type DetailVariant } from "@/hooks/use-product-detail
 import { EMPTY_FILTERS, buildCards, scopeProducts } from "@/lib/catalogue";
 import { formatNaira } from "@/lib/format";
 import { SITE } from "@/lib/site-config";
+import { POLICY_NUMBERS } from "@/lib/store-policies";
 import { supabase } from "@/lib/supabase";
 import { useCartStore } from "@/stores/cart-store";
 import { selectIsWishlisted, useWishlistStore } from "@/stores/wishlist-store";
@@ -26,10 +28,20 @@ type DeliveryZone = {
   max_days: number;
 };
 
-type ModalName = "condition" | "delivery" | "item" | "description" | null;
+type ModalName = "condition" | "delivery" | "item" | "description" | "offer" | null;
 
 // The most a shopper can pick in the quantity box at once.
 const MAX_QUANTITY = 10;
+
+const WHATSAPP_BASE = SITE.whatsappUrl.split("?")[0];
+
+function whatsappLink(message: string): string {
+  return `${WHATSAPP_BASE}?text=${encodeURIComponent(message)}`;
+}
+
+function whatsappShareLink(message: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
 
 const byPosition = (a: { position: number }, b: { position: number }) => a.position - b.position;
 
@@ -53,6 +65,10 @@ function deliveryTimeline(zone: DeliveryZone): string {
   return `${zone.min_days} to ${zone.max_days} working days`;
 }
 
+function feeText(zone: DeliveryZone): string {
+  return zone.fee_kobo === 0 ? "Free" : formatNaira(zone.fee_kobo);
+}
+
 /** Starts on the first in-stock variant, so shoppers see something they can buy. */
 function defaultVariant(variants: DetailVariant[]): DetailVariant | null {
   return variants.find((v) => v.stock > 0) ?? variants[0] ?? null;
@@ -68,11 +84,32 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ShareIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 2v13" />
+      <path d="m16 6-4-4-4 4" />
+      <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+    </svg>
+  );
+}
+
+const PAYMENT_METHODS = ["Paystack", "Bank transfer", "Visa", "Mastercard", "USSD"];
+
 export function ProductDetailView({ slug }: { slug: string }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const { product, status } = useProductDetail(slug);
-  const { products: catalogue, status: catalogueStatus } = useCatalogue();
+  const { products: catalogue } = useCatalogue();
 
   const addItem = useCartStore((state) => state.addItem);
   const toggleWishlist = useWishlistStore((state) => state.toggleItem);
@@ -125,7 +162,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
     const scoped = scopeProducts(catalogue, [product.categoryId], "");
     return buildCards(scoped, EMPTY_FILTERS, "featured")
       .filter((card) => card.productId !== product.id)
-      .slice(0, 4);
+      .slice(0, 8);
   }, [catalogue, product]);
 
   const reviewSummary = useMemo(() => {
@@ -177,6 +214,11 @@ export function ProductDetailView({ slug }: { slug: string }) {
       </section>
     );
   }
+
+  const topPicks = related.slice(0, 3);
+  const similar = related.slice(3, 7);
+  const lagosZone = zones.find((zone) => zone.name === "Lagos");
+  const outsideZone = zones.find((zone) => zone.name === "Outside Lagos");
 
   function closeModal() {
     setModal(null);
@@ -231,13 +273,11 @@ export function ProductDetailView({ slug }: { slug: string }) {
         label: String(index + 1),
       }));
 
-  const deliverySummary =
-    zones.length === 0
-      ? "Loading delivery options…"
-      : zones
-          .filter((zone) => zone.name !== "Store Pickup")
-          .map((zone) => `${zone.name}: ${deliveryTimeline(zone)}`)
-          .join(" · ");
+  const variantText = variant && variant.label ? ` (${variant.label})` : "";
+  const offerLink = whatsappLink(
+    `Hello, I'd like to make an offer on ${product.name}${variantText}. Could we talk about the price?`
+  );
+  const messageLink = whatsappLink(`Hello, I have a question about ${product.name}.`);
 
   function buildCartItem() {
     if (!variant) return null;
@@ -282,6 +322,15 @@ export function ProductDetailView({ slug }: { slug: string }) {
     });
   }
 
+  function handleShare() {
+    const url = window.location.href;
+    window.open(
+      whatsappShareLink(`${product!.name} at ${SITE.name}: ${url}`),
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
   // The heart sits on the photo, as in the screenshot.
   const heartButton = (
     <button
@@ -314,30 +363,93 @@ export function ProductDetailView({ slug }: { slug: string }) {
           <span className="text-ink">{product.name}</span>
         </nav>
 
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-10">
-          <ProductGallery urls={images} alt={product.name} action={heartButton} />
+        {/* Top band: people who viewed this item also viewed */}
+        {topPicks.length > 0 && (
+          <section className="rounded-xl border border-slate-200 bg-white p-4 md:p-5">
+            <h2 className="text-base font-bold text-ink">People who viewed this item also viewed</h2>
+            <ul className="mt-3 grid gap-3 md:grid-cols-3">
+              {topPicks.map((card) => (
+                <li key={card.productId}>
+                  <Link
+                    href={`/product/${card.slug}/`}
+                    className="flex gap-3 rounded-lg p-2 hover:bg-paper"
+                  >
+                    <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-paper">
+                      {card.imageUrl && (
+                        <Image src={card.imageUrl} alt="" fill sizes="64px" className="object-contain p-1" />
+                      )}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="line-clamp-2 block text-sm font-medium text-ink">{card.name}</span>
+                      <span className="mt-1 block text-sm font-bold text-ink">
+                        {formatNaira(card.priceKobo)}
+                      </span>
+                      {card.compareAtKobo !== null && card.compareAtKobo > card.priceKobo && (
+                        <span className="block text-xs text-slate-500 line-through">
+                          {formatNaira(card.compareAtKobo)}
+                        </span>
+                      )}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
-          {/* Buying panel: in the same order as the screenshot. It stays in view on a computer. */}
-          <aside className="mt-5 lg:sticky lg:top-40 lg:mt-0">
+        <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start lg:gap-10">
+          {/* Left column: photos, share, similar items */}
+          <div className="min-w-0">
+            <ProductGallery urls={images} alt={product.name} action={heartButton} />
+
+            <button
+              type="button"
+              onClick={handleShare}
+              aria-label="Share this product"
+              className="mt-4 flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 text-ink hover:border-slate-700"
+            >
+              <ShareIcon className="h-5 w-5" />
+            </button>
+
+            {similar.length > 0 && (
+              <section className="mt-10 border-t border-slate-200 pt-8">
+                <h2 className="text-xl font-bold text-ink">Similar items</h2>
+                <div className="mt-4 grid grid-cols-2 gap-4">
+                  {similar.map((card) => (
+                    <ProductCard key={card.variantId} product={card} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* Right column: buying panel, shipping and confidence */}
+          <aside className="mt-6 lg:mt-0">
             <h1 className="text-2xl font-bold leading-snug text-ink md:text-3xl">{product.name}</h1>
 
-            <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="mt-4 flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
               <div className="flex min-w-0 items-center gap-3">
                 <span
                   aria-hidden="true"
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-700 text-lg font-extrabold text-white"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-700 text-lg font-extrabold text-white"
                 >
                   {SITE.name.charAt(0)}
                 </span>
                 <div className="min-w-0">
-                  <Link href="/about/" className="font-bold text-ink hover:text-blue-700 hover:underline">
+                  <Link href="/about/" className="block font-bold text-ink hover:text-blue-700 hover:underline">
                     {SITE.name}
                   </Link>
-                  <p className="text-sm text-slate-600">Genuine products · Warranty on every item</p>
+                  <p className="text-sm text-slate-600">
+                    {reviewSummary
+                      ? `${reviewSummary.average.toFixed(1)} out of 5 · ${reviewSummary.count} ${
+                          reviewSummary.count === 1 ? "review" : "reviews"
+                        }`
+                      : "Genuine products · Warranty on every item"}
+                  </p>
                 </div>
               </div>
               <a
-                href={SITE.whatsappUrl}
+                href={messageLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="shrink-0 rounded-full border border-slate-400 px-5 py-2 text-sm font-semibold text-ink hover:border-slate-700"
@@ -365,18 +477,6 @@ export function ProductDetailView({ slug }: { slug: string }) {
             )}
 
             <p className={`mt-2 text-sm font-semibold ${stockInfo.className}`}>{stockInfo.text}</p>
-
-            <button
-              type="button"
-              onClick={() => setModal("delivery")}
-              className="mt-5 flex w-full items-center justify-between gap-4 border-t border-slate-200 pt-4 text-left"
-            >
-              <span className="min-w-0">
-                <span className="block font-semibold text-ink">Delivery</span>
-                <span className="mt-1 block text-sm text-slate-700">{deliverySummary}</span>
-              </span>
-              <ChevronDownIcon className="h-5 w-5 shrink-0 -rotate-90 text-ink" />
-            </button>
 
             <p className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
               Condition <span className="font-bold text-ink">New</span>
@@ -422,7 +522,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
               />
             </div>
 
-            <div className="mt-5 space-y-3">
+            <div className="mt-6 space-y-3">
               <button
                 type="button"
                 onClick={handleBuyNow}
@@ -441,6 +541,13 @@ export function ProductDetailView({ slug }: { slug: string }) {
               </button>
               <button
                 type="button"
+                onClick={() => setModal("offer")}
+                className="w-full rounded-full border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50"
+              >
+                Make offer
+              </button>
+              <button
+                type="button"
                 onClick={handleWishlist}
                 aria-pressed={wished}
                 className="flex w-full items-center justify-center gap-2 rounded-full border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50"
@@ -450,26 +557,80 @@ export function ProductDetailView({ slug }: { slug: string }) {
               </button>
             </div>
 
-            <ul className="mt-5 space-y-2 rounded-xl bg-paper p-4 text-sm text-slate-700">
-              <li>✓ Genuine product</li>
-              <li>
-                ✓ Warranty on every item.{" "}
-                <Link href="/warranty/" className="font-semibold text-blue-700 hover:underline">
-                  Details
-                </Link>
-              </li>
-              <li>
-                ✓ Returns policy.{" "}
-                <Link href="/returns/" className="font-semibold text-blue-700 hover:underline">
-                  Read more
-                </Link>
-              </li>
-            </ul>
+            <section className="mt-6 border-t border-slate-200 pt-5">
+              <h2 className="text-base font-bold text-ink">Shipping, returns, and payments</h2>
+              <dl className="mt-3 divide-y divide-slate-200 text-sm">
+                <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-3">
+                  <dt className="text-slate-500">Shipping</dt>
+                  <dd className="text-ink">
+                    {zones.length === 0 && <p>Loading delivery options…</p>}
+                    {lagosZone && (
+                      <p>
+                        Lagos: {feeText(lagosZone)} · {deliveryTimeline(lagosZone)}
+                      </p>
+                    )}
+                    {outsideZone && (
+                      <p>
+                        Outside Lagos: {feeText(outsideZone)} · {deliveryTimeline(outsideZone)}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setModal("delivery")}
+                      className="mt-1 font-semibold text-blue-700 hover:underline"
+                    >
+                      See delivery details
+                    </button>
+                  </dd>
+                </div>
+
+                <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-3">
+                  <dt className="text-slate-500">Returns</dt>
+                  <dd className="text-ink">
+                    Faulty or wrong items: contact us within {POLICY_NUMBERS.returnWindowDays} days of
+                    delivery.{" "}
+                    <Link href="/returns/" className="font-semibold text-blue-700 hover:underline">
+                      See details
+                    </Link>
+                  </dd>
+                </div>
+
+                <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-3">
+                  <dt className="text-slate-500">Payments</dt>
+                  <dd>
+                    <ul className="flex flex-wrap gap-2">
+                      {PAYMENT_METHODS.map((method) => (
+                        <li
+                          key={method}
+                          className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-ink"
+                        >
+                          {method}
+                        </li>
+                      ))}
+                    </ul>
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="mt-6 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5">
+              <h2 className="text-base font-bold text-ink">Shop with confidence</h2>
+              <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                <li>✓ Genuine products, sold by {SITE.name}</li>
+                <li>
+                  ✓ Warranty on every item.{" "}
+                  <Link href="/warranty/" className="font-semibold text-blue-700 hover:underline">
+                    Details
+                  </Link>
+                </li>
+                <li>✓ Support by phone and WhatsApp after you buy</li>
+              </ul>
+            </section>
           </aside>
         </div>
 
         {/* About this item: two rows that open pop-up boxes */}
-        <section className="mt-10 border-t border-slate-200 pt-8">
+        <section className="mt-12 border-t border-slate-200 pt-8">
           <h2 className="text-xl font-bold text-ink">About this item</h2>
 
           <div className="mt-4 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
@@ -546,17 +707,6 @@ export function ProductDetailView({ slug }: { slug: string }) {
         </section>
       </section>
 
-      {(related.length > 0 || catalogueStatus === "loading") && (
-        <div className="border-t border-slate-200 bg-white">
-          <ProductRow
-            title="You may also like"
-            subtitle={product.categoryName ? `More from ${product.categoryName}` : undefined}
-            products={related}
-            status={catalogueStatus}
-          />
-        </div>
-      )}
-
       {/* Pop-up boxes */}
       <Modal title="Item description" open={modal === "item"} onClose={closeModal}>
         <dl className="divide-y divide-slate-200">
@@ -586,7 +736,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
               <li key={zone.name} className="flex justify-between gap-4 py-3 text-sm">
                 <span className="font-semibold text-ink">{zone.name}</span>
                 <span className="text-right text-slate-700">
-                  {zone.fee_kobo === 0 ? "Free" : formatNaira(zone.fee_kobo)} · {deliveryTimeline(zone)}
+                  {feeText(zone)} · {deliveryTimeline(zone)}
                 </span>
               </li>
             ))}
@@ -606,6 +756,21 @@ export function ProductDetailView({ slug }: { slug: string }) {
           page.
         </p>
       </Modal>
+
+      <Modal title="Make an offer" open={modal === "offer"} onClose={closeModal}>
+        <p className="text-sm leading-relaxed text-slate-700">
+          Tell us the price you&apos;d like to pay for {product.name}. We&apos;ll reply on WhatsApp to
+          confirm whether we can agree.
+        </p>
+        <a
+          href={offerLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-5 block rounded-full bg-green-600 px-6 py-3 text-center font-semibold text-white hover:bg-green-700"
+        >
+          Send offer on WhatsApp
+        </a>
+      </Modal>
     </div>
   );
-                                           }
+}
