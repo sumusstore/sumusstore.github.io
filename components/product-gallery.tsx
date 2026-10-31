@@ -1,20 +1,23 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 type ProductGalleryProps = {
   urls: string[];
   alt: string;
+  /** A button shown on the bottom-right corner of the main photo, such as the save heart. */
+  action?: ReactNode;
 };
 
-export function ProductGallery({ urls, alt }: ProductGalleryProps) {
+export function ProductGallery({ urls, alt, action }: ProductGalleryProps) {
   const [index, setIndex] = useState(0);
 
   if (urls.length === 0) {
     return (
-      <div className="flex aspect-square items-center justify-center rounded-xl bg-slate-50 text-sm text-slate-400">
+      <div className="relative flex aspect-square items-center justify-center rounded-xl bg-white text-sm text-slate-400">
         Photos coming soon
+        {action && <div className="absolute bottom-3 right-3">{action}</div>}
       </div>
     );
   }
@@ -24,11 +27,11 @@ export function ProductGallery({ urls, alt }: ProductGalleryProps) {
 
   return (
     <div className="md:flex md:gap-4">
+      {/* Thumbnails run down the side on computers only */}
       {urls.length > 1 && (
-        // Thumbnails sit in a row under the photo on phones, and in a column beside it on desktop.
-        <ul className="order-2 mt-3 flex gap-2 overflow-x-auto md:order-1 md:mt-0 md:w-16 md:flex-col md:overflow-visible">
+        <ul className="hidden md:flex md:w-16 md:flex-col md:gap-2">
           {urls.map((url, i) => (
-            <li key={`${url}-${i}`} className="shrink-0">
+            <li key={`${url}-${i}`}>
               <button
                 type="button"
                 onClick={() => setIndex(i)}
@@ -45,15 +48,36 @@ export function ProductGallery({ urls, alt }: ProductGalleryProps) {
         </ul>
       )}
 
-      <div className="relative order-1 aspect-square min-w-0 flex-1 overflow-hidden rounded-xl bg-slate-50 md:order-2">
-        <Image
-          src={urls[safeIndex]}
-          alt={alt}
-          fill
-          priority
-          sizes="(min-width: 1024px) 40vw, 100vw"
-          className="object-contain p-6"
-        />
+      <div className="min-w-0 flex-1">
+        <div className="relative aspect-square overflow-hidden rounded-xl bg-white">
+          <Image
+            src={urls[safeIndex]}
+            alt={alt}
+            fill
+            priority
+            sizes="(min-width: 1024px) 40vw, 100vw"
+            className="object-contain p-6"
+          />
+          {action && <div className="absolute bottom-3 right-3 z-10">{action}</div>}
+        </div>
+
+        {/* Dots under the photo on phones */}
+        {urls.length > 1 && (
+          <ul className="mt-3 flex justify-center gap-2 md:hidden">
+            {urls.map((url, i) => (
+              <li key={`dot-${url}-${i}`}>
+                <button
+                  type="button"
+                  onClick={() => setIndex(i)}
+                  aria-label={`Show photo ${i + 1}`}
+                  className={`block rounded-full ${
+                    i === safeIndex ? "h-2.5 w-2.5 bg-ink" : "h-2 w-2 bg-slate-300"
+                  }`}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
