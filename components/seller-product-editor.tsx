@@ -145,6 +145,10 @@ export function SellerProductEditor({
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [version, setVersion] = useState(0);
 
+  const [addingBrand, setAddingBrand] = useState(false);
+  const [newBrandName, setNewBrandName] = useState("");
+  const [brandSaving, setBrandSaving] = useState(false);
+
   const snapshot: Snapshot = {
     name,
     brandId,
@@ -232,6 +236,62 @@ export function SellerProductEditor({
     if (error) throw new Error(error.message);
     setLive(next);
     return next;
+  }
+
+  /** Adds a brand a seller can't find. If the name already exists in any case, that brand is selected instead. */
+  async function saveNewBrand() {
+    const cleaned = newBrandName.trim().replace(/\s+/g, " ");
+    if (cleaned.length < 2) {
+      setFeedback({ tone: "error", text: "Enter the brand name, at least 2 letters." });
+      return;
+    }
+
+    const existing = brands.find((brand) => brand.name.toLowerCase() === cleaned.toLowerCase());
+    if (existing) {
+      setBrandId(existing.id);
+      setAddingBrand(false);
+      setNewBrandName("");
+      setFeedback({ tone: "info", text: `${existing.name} is already listed, so it's selected for this product.` });
+      return;
+    }
+
+    setBrandSaving(true);
+    setFeedback(null);
+    const base = slugify(cleaned) || "brand";
+
+    let result = await supabase
+      .from("brands")
+      .insert({ name: cleaned, slug: base })
+      .select("id, name, slug")
+      .single();
+
+    // The web address is already taken by a similar brand, so add a short code to it.
+    if (result.error?.code === "23505") {
+      result = await supabase
+        .from("brands")
+        .insert({ name: cleaned, slug: `${base}-${randomCode(4).toLowerCase()}` })
+        .select("id, name, slug")
+        .single();
+    }
+
+    setBrandSaving(false);
+
+    if (result.error || !result.data) {
+      setFeedback({
+        tone: "error",
+        text: result.error?.message
+          ? `The brand couldn't be added. ${result.error.message}`
+          : "The brand couldn't be added. Try a different name.",
+      });
+      return;
+    }
+
+    const created = result.data as Brand;
+    setBrands((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+    setBrandId(created.id);
+    setAddingBrand(false);
+    setNewBrandName("");
+    setFeedback({ tone: "info", text: `${created.name} is added as a brand and selected for this product.` });
   }
 
   function addVariant() {
@@ -515,6 +575,7 @@ export function SellerProductEditor({
             <input className={INPUT} value={name} onChange={(event) => setName(event.target.value)} />
           </Mini>
         </div>
+
         <Mini label="Brand">
           <select className={INPUT} value={brandId} onChange={(event) => setBrandId(event.target.value)}>
             <option value="">Choose a brand</option>
@@ -525,6 +586,7 @@ export function SellerProductEditor({
             ))}
           </select>
         </Mini>
+
         <Mini label="Category">
           <select className={INPUT} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
             <option value="">Choose a category</option>
@@ -535,6 +597,45 @@ export function SellerProductEditor({
             ))}
           </select>
         </Mini>
+
+        <div className="md:col-span-2">
+          {!addingBrand ? (
+            <button
+              type="button"
+              onClick={() => setAddingBrand(true)}
+              className="text-xs font-semibold text-blue-700 hover:underline"
+            >
+              Your brand isn&apos;t in the list? Add a new brand
+            </button>
+          ) : (
+            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-paper p-3 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <Mini label="New brand name">
+                  <input
+                    className={INPUT}
+                    placeholder="e.g. Hisense"
+                    value={newBrandName}
+                    onChange={(event) => setNewBrandName(event.target.value)}
+                  />
+                </Mini>
+              </div>
+              <button type="button" onClick={saveNewBrand} disabled={brandSaving} className={BUTTON}>
+                {brandSaving ? "Adding…" : "Use this brand"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddingBrand(false);
+                  setNewBrandName("");
+                }}
+                className={GHOST}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="md:col-span-2">
           <Mini label="Description (at least 20 characters)">
             <textarea
