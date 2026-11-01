@@ -68,7 +68,7 @@ function toCompared(row: CompareRow): Compared {
 function Row({ label, cells }: { label: string; cells: string[] }) {
   return (
     <tr className="border-t border-slate-200">
-      <th scope="row" className="sticky left-0 bg-white p-3 text-left font-medium text-slate-700">
+      <th scope="row" className="sticky left-0 bg-white p-3 text-left font-semibold text-ink">
         {label}
       </th>
       {cells.map((cell, index) => (
@@ -147,12 +147,15 @@ export function CompareView() {
 
   if (ids.length === 0 || items.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center">
-        <p className="font-semibold text-slate-900">Nothing to compare yet</p>
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+        <p className="font-semibold text-ink">Nothing to compare yet</p>
         <p className="mt-1 text-sm text-slate-600">
           Tap Compare on up to {MAX_COMPARE} products in the shop.
         </p>
-        <Link href="/shop/" className="mt-4 inline-block font-semibold text-blue-700 hover:underline">
+        <Link
+          href="/shop/"
+          className="mt-4 inline-block font-semibold text-blue-700 hover:underline"
+        >
           Browse products
         </Link>
       </div>
@@ -177,29 +180,27 @@ export function CompareView() {
       </div>
 
       {items.length < 2 && (
-        <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
+        <p className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
           Add at least one more product to see a comparison. Use Compare on any product card.
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
+      {/* The table scrolls sideways inside its own card on phones. On laptops it fills the width. */}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white">
         <table className="min-w-full border-collapse text-sm">
           <thead>
-            <tr className="bg-slate-50">
-              <th scope="col" className="sticky left-0 w-40 bg-slate-50 p-3 text-left font-semibold text-slate-700">
+            <tr className="bg-paper">
+              <th
+                scope="col"
+                className="sticky left-0 w-40 bg-paper p-3 text-left font-bold text-ink"
+              >
                 Feature
               </th>
               {items.map((item) => (
                 <th key={item.id} scope="col" className="min-w-52 p-3 text-left align-top">
-                  <div className="relative h-28 w-28 overflow-hidden rounded-lg bg-slate-100">
+                  <div className="relative h-28 w-28 overflow-hidden rounded-lg bg-paper">
                     {item.imageUrl ? (
-                      <Image
-                        src={item.imageUrl}
-                        alt=""
-                        fill
-                        sizes="112px"
-                        className="object-contain p-2"
-                      />
+                      <Image src={item.imageUrl} alt="" fill sizes="112px" className="object-contain p-2" />
                     ) : (
                       <span className="flex h-full items-center justify-center text-xs text-slate-400">
                         No photo
@@ -208,14 +209,14 @@ export function CompareView() {
                   </div>
                   <Link
                     href={`/product/${item.slug}/`}
-                    className="mt-2 block font-semibold text-slate-900 hover:text-blue-700"
+                    className="mt-2 block font-semibold text-ink hover:text-blue-700"
                   >
                     {item.name}
                   </Link>
                   <button
                     type="button"
                     onClick={() => remove(item.id)}
-                    className="mt-1 text-xs font-medium text-red-600 hover:underline"
+                    className="mt-1 text-xs font-semibold text-red-600 hover:underline"
                   >
                     Remove
                   </button>
