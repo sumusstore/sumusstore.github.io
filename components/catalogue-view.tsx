@@ -72,19 +72,20 @@ export function CatalogueView({
   return (
     <section className="mx-auto max-w-6xl px-4 py-6">
       {breadcrumb}
-      <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{title}</h1>
+      <h1 className="text-2xl font-bold text-ink md:text-3xl">{title}</h1>
       {subtitle && <p className="mt-1 text-sm text-slate-600">{subtitle}</p>}
       {children}
 
-      <div className="mt-6 md:grid md:grid-cols-[14rem_minmax(0,1fr)] md:items-start md:gap-6">
-        {/* Filters: a side panel on desktop, a sheet opened by a button on phones */}
+      {/* Phones: a single column. Laptops (lg and up): filters on the left, results on the right. */}
+      <div className="mt-6 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-8">
+        {/* Filters: a panel on laptops that stays in view, a sheet opened by a button on phones */}
         <aside
           className={`${
             panelOpen ? "block" : "hidden"
-          } mb-6 rounded-xl border border-slate-200 bg-white p-4 md:sticky md:top-40 md:mb-0 md:block`}
+          } mb-6 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5 lg:sticky lg:top-40 lg:mb-0 lg:block`}
         >
-          <div className="mb-4 flex items-center justify-between md:hidden">
-            <p className="font-bold text-slate-900">Filters</p>
+          <div className="mb-4 flex items-center justify-between lg:hidden">
+            <p className="font-bold text-ink">Filters</p>
             <button
               type="button"
               onClick={() => setPanelOpen(false)}
@@ -93,7 +94,7 @@ export function CatalogueView({
               Close
             </button>
           </div>
-          <p className="mb-4 hidden text-base font-bold text-slate-900 md:block">Filters</p>
+          <p className="mb-4 hidden text-base font-bold text-ink lg:block">Filters</p>
 
           <FilterPanel facets={facets} filters={filters} onChange={changeFilters} />
 
@@ -101,7 +102,7 @@ export function CatalogueView({
             <button
               type="button"
               onClick={clearFilters}
-              className="mt-6 text-sm font-medium text-blue-700 hover:underline"
+              className="mt-6 text-sm font-semibold text-blue-700 hover:underline"
             >
               Clear all filters
             </button>
@@ -109,14 +110,14 @@ export function CatalogueView({
         </aside>
 
         <div className="min-w-0">
-          {/* Results line and sort menu */}
+          {/* Results line, filter button on phones, and sort menu */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setPanelOpen((open) => !open)}
                 aria-expanded={panelOpen}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold md:hidden"
+                className="rounded-full border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 lg:hidden"
               >
                 Filters{activeCount > 0 ? ` (${activeCount})` : ""}
               </button>
@@ -125,12 +126,12 @@ export function CatalogueView({
               </p>
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-ink">
               Sort by
               <select
                 value={sort}
                 onChange={(event) => changeSort(event.target.value as SortOption)}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="rounded-full border-2 border-blue-700 bg-white px-4 py-2 text-sm font-medium text-ink focus:outline-none focus:ring-2 focus:ring-blue-200"
               >
                 {SORT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -142,7 +143,7 @@ export function CatalogueView({
           </div>
 
           {status === "loading" && (
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
               {Array.from({ length: 8 }, (_, index) => (
                 <div key={index} className="aspect-[3/4] animate-pulse rounded-xl bg-slate-100" />
               ))}
@@ -156,8 +157,8 @@ export function CatalogueView({
           )}
 
           {status === "ready" && cards.length === 0 && (
-            <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-8 text-center">
-              <p className="font-semibold text-slate-900">No products match these choices.</p>
+            <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+              <p className="font-semibold text-ink">No products match these choices.</p>
               <p className="mt-1 text-sm text-slate-600">
                 Try removing a filter or searching for something else.
               </p>
@@ -165,7 +166,7 @@ export function CatalogueView({
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="mt-4 rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
+                  className="mt-4 rounded-full bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
                 >
                   Clear all filters
                 </button>
@@ -175,7 +176,7 @@ export function CatalogueView({
 
           {status === "ready" && shown.length > 0 && (
             <>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
                 {shown.map((card) => (
                   <ProductCard key={card.variantId} product={card} />
                 ))}
@@ -189,7 +190,7 @@ export function CatalogueView({
                   <button
                     type="button"
                     onClick={() => setVisible((count) => count + PAGE_SIZE)}
-                    className="mt-3 rounded-full border border-slate-300 px-6 py-2.5 text-sm font-semibold hover:border-blue-600 hover:text-blue-700"
+                    className="mt-3 rounded-full border border-blue-700 px-6 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
                   >
                     Load more
                   </button>
