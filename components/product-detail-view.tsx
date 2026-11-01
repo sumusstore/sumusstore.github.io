@@ -576,9 +576,9 @@ export function ProductDetailView({ slug }: { slug: string }) {
           <span className="text-ink">{product.name}</span>
         </nav>
 
-        {/* People who viewed this item also viewed: shows on phones and laptops */}
+        {/* People who viewed this item also viewed: desktop only. Hidden on phones. */}
         {topPicks.length > 0 && (
-          <section className="rounded-xl border border-slate-200 bg-white p-4 md:p-5">
+          <section className="hidden rounded-xl border border-slate-200 bg-white p-5 md:block">
             <h2 className="text-base font-bold text-ink">People who viewed this item also viewed</h2>
             <ul className="mt-3 grid gap-3 md:grid-cols-3">
               {topPicks.map((card) => (
