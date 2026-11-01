@@ -1,167 +1,279 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AdminEnquiries } from "@/components/admin-enquiries";
-import { AdminOrders } from "@/components/admin-orders";
-import { AdminProducts } from "@/components/admin-products";
-import { AdminSellers } from "@/components/admin-sellers";
-import { AdminSetup } from "@/components/admin-setup";
-import { markOrdersSeen, useAdminAlerts } from "@/hooks/use-admin-alerts";
+import { useEffect, useState, type FormEvent } from "react";
+import { AdminProductEditor } from "@/components/admin-product-editor";
+import { Notice } from "@/components/form-field";
+import { slugify, type Brand, type Category } from "@/lib/admin-utils";
+import { formatNaira } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 
-type Tab = "orders" | "enquiries" | "sellers" | "products" | "setup";
+type ListRow = {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  moderation: "live" | "hidden";
+  brands: { name: string } | null;
+  sellers: { display_name: string } | null;
+  product_images: { image_url: string; position: number }[];
+  product_variants: { price_kobo: number; stock_qty: number; is_active: boolean }[];
+};
 
-const TABS: { value: Tab; label: string }[] = [
-  { value: "orders", label: "Orders" },
-  { value: "enquiries", label: "Enquiries" },
-  { value: "sellers", label: "Sellers" },
-  { value: "products", label: "Products" },
-  { value: "setup", label: "Brands and categories" },
-];
+type Message = { tone: "error" | "info"; text: string } | null;
 
-/** A small gold count shown beside a tab name. Hidden when the count is zero. */
-function CountBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-xs font-bold text-ink">
-      {count}
-    </span>
-  );
+const INPUT =
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-600 focus:outline-none";
+const BUTTON =
+  "rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300";
+const GHOST =
+  "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-800 hover:border-slate-500";
+
+/** Summarises a product's active variants for the list, such as "From ₦125,000 · 12 in stock". */
+function summary(row: ListRow): string {
+  const active = row.product_variants.filter((variant) => variant.is_active);
+  if (active.length === 0) return "No active variants yet";
+  const cheapest = Math.min(...active.map((variant) => variant.price_kobo));
+  const stock = active.reduce((total, variant) => total + variant.stock_qty, 0);
+  return `From ${formatNaira(cheapest)} · ${stock} in stock`;
 }
 
-export function AdminView() {
-  const [tab, setTab] = useState<Tab>("orders");
-  const [pendingSellers, setPendingSellers] = useState(0);
-  const [sellerTick, setSellerTick] = useState(0);
-  const { counts, version, refresh, alerts, requestAlerts } = useAdminAlerts();
-  const total = counts.orders + counts.enquiries;
+export function AdminProducts() {
+  const [rows, setRows] = useState<ListRow[] | null>(null);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [version, setVersion] = useState(0);
+  const [search, setSearch] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [message, setMessage] = useState<Message>(null);
 
-  useEffect(() => {
-    document.title = total > 0 ? `(${total}) Store admin` : "Store admin";
-  }, [total]);
-
-  // Counts applications waiting for a decision. Refreshes when the tab changes or a decision is saved.
   useEffect(() => {
     let active = true;
-    supabase
-      .from("sellers")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "pending")
-      .then(({ count }) => {
-        if (active) setPendingSellers(count ?? 0);
-      });
+
+    Promise.all([
+      supabase
+        .from("products")
+        .select(
+          "id, name, slug, is_active, moderation, brands(name), sellers(display_name), product_images(image_url, position), product_variants(price_kobo, stock_qty, is_active)"
+        )
+        .order("name"),
+      supabase.from("brands").select("id, name, slug").order("name"),
+      supabase.from("categories").select("id, name, slug, parent_id, sort_order").order("sort_order"),
+    ]).then(([productResult, brandResult, categoryResult]) => {
+      if (!active) return;
+
+      if (productResult.error) {
+        setMessage({ tone: "error", text: "Products couldn't load. Refresh the page to try again." });
+        setRows([]);
+      } else {
+        setRows((productResult.data ?? []) as unknown as ListRow[]);
+      }
+      setBrands((brandResult.data ?? []) as Brand[]);
+      setCategories((categoryResult.data ?? []) as Category[]);
+    });
+
     return () => {
       active = false;
     };
-  }, [tab, sellerTick]);
+  }, [version]);
 
-  async function handleGotIt() {
-    await markOrdersSeen();
-    refresh();
+  function reload() {
+    setVersion((current) => current + 1);
   }
 
-  const alertParts: string[] = [];
-  if (counts.orders > 0) {
-    alertParts.push(`${counts.orders} new ${counts.orders === 1 ? "order" : "orders"}`);
+  async function toggleActive(row: ListRow) {
+    const { error } = await supabase
+      .from("products")
+      .update({ is_active: !row.is_active })
+      .eq("id", row.id);
+
+    if (error) {
+      setMessage({ tone: "error", text: "Couldn't change this product's visibility." });
+      return;
+    }
+    reload();
   }
-  if (counts.enquiries > 0) {
-    alertParts.push(
-      `${counts.enquiries} ${counts.enquiries === 1 ? "enquiry" : "enquiries"} to reply to`
-    );
+
+  async function toggleModeration(row: ListRow) {
+    const hiding = row.moderation === "live";
+    const question = hiding
+      ? `Hide ${row.name} from the shop?${row.sellers ? " The seller can't show it again until you restore it." : ""}`
+      : `Restore ${row.name}? Switch it on afterwards to show it.`;
+    if (!window.confirm(question)) return;
+
+    const { error } = await supabase
+      .from("products")
+      .update(hiding ? { moderation: "hidden", is_active: false } : { moderation: "live" })
+      .eq("id", row.id);
+
+    if (error) {
+      setMessage({ tone: "error", text: "Couldn't change this product. Try again." });
+      return;
+    }
+    setMessage({
+      tone: "info",
+      text: hiding ? `${row.name} is hidden from the shop.` : `${row.name} is restored. Switch it on to show it.`,
+    });
+    reload();
   }
+
+  async function createProduct(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = newName.trim();
+    const slug = slugify(name);
+    if (!name || !slug) {
+      setMessage({ tone: "error", text: "Enter a product name." });
+      return;
+    }
+
+    setCreating(true);
+    const { data, error } = await supabase
+      .from("products")
+      .insert({ name, slug, is_active: false })
+      .select("id")
+      .single();
+    setCreating(false);
+
+    if (error) {
+      setMessage({
+        tone: "error",
+        text:
+          error.code === "23505"
+            ? "A product with this web address already exists. Use a different name."
+            : "The product couldn't be created.",
+      });
+      return;
+    }
+
+    setNewName("");
+    setMessage({
+      tone: "info",
+      text: `${name} is created and hidden from the shop. Add a variant with a price, then switch the product on.`,
+    });
+    setOpenId(data.id);
+    reload();
+  }
+
+  const query = search.trim().toLowerCase();
+  const visible = (rows ?? []).filter(
+    (row) =>
+      !query ||
+      row.name.toLowerCase().includes(query) ||
+      (row.brands?.name ?? "").toLowerCase().includes(query) ||
+      (row.sellers?.display_name ?? "").toLowerCase().includes(query)
+  );
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-3xl font-bold text-ink">Store admin</h1>
-
-      {total > 0 && (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-4">
-          <p className="font-semibold text-ink">{alertParts.join(" and ")}.</p>
-          <div className="flex flex-wrap gap-2">
-            {counts.orders > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setTab("orders")}
-                  className="rounded-full bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-                >
-                  Open orders
-                </button>
-                <button
-                  type="button"
-                  onClick={handleGotIt}
-                  className="rounded-full border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-                >
-                  Mark orders as seen
-                </button>
-              </>
-            )}
-            {counts.enquiries > 0 && (
-              <button
-                type="button"
-                onClick={() => setTab("enquiries")}
-                className="rounded-full bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-              >
-                Open enquiries
-              </button>
-            )}
-          </div>
+    <div className="space-y-6">
+      <form
+        onSubmit={createProduct}
+        className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-end"
+      >
+        <div className="flex-1">
+          <label htmlFor="new-product" className="block text-sm font-medium text-ink">
+            New product name
+          </label>
+          <input
+            id="new-product"
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+            placeholder="e.g. Tecno Pova 6"
+            className={`mt-1 ${INPUT}`}
+          />
         </div>
-      )}
-
-      {alerts === "default" && (
-        <button
-          type="button"
-          onClick={requestAlerts}
-          className="mt-4 rounded-full border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-        >
-          Turn on phone alerts
+        <button type="submit" disabled={creating} className={BUTTON}>
+          {creating ? "Creating…" : "Create product"}
         </button>
-      )}
-      {alerts === "granted" && (
-        <p className="mt-4 text-xs text-slate-500">Pop-up alerts are on while this page is open.</p>
-      )}
-      {alerts === "denied" && (
-        <p className="mt-4 text-xs text-slate-500">
-          Pop-up alerts are blocked in this browser. The banner above still shows new work.
-        </p>
-      )}
+      </form>
 
-      <div role="tablist" className="mt-6 flex gap-6 overflow-x-auto border-b border-slate-200">
-        {TABS.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.value}
-            onClick={() => setTab(item.value)}
-            className={`-mb-px flex items-center whitespace-nowrap border-b-4 pb-3 text-sm font-semibold ${
-              tab === item.value
-                ? "border-gold text-ink"
-                : "border-transparent text-slate-600 hover:text-ink"
-            }`}
-          >
-            {item.label}
-            {item.value === "orders" && <CountBadge count={counts.orders} />}
-            {item.value === "enquiries" && <CountBadge count={counts.enquiries} />}
-            {item.value === "sellers" && <CountBadge count={pendingSellers} />}
-          </button>
-        ))}
-      </div>
+      <input
+        type="search"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search products, brands or sellers"
+        aria-label="Search products"
+        className={INPUT}
+      />
 
-      <div className="mt-6">
-        {/* Remounts the orders list when new orders arrive, so they appear without a reload. */}
-        {tab === "orders" && <AdminOrders key={version} />}
-        {tab === "enquiries" && <AdminEnquiries onChanged={refresh} />}
-        {tab === "sellers" && <AdminSellers onChanged={() => setSellerTick((count) => count + 1)} />}
-        {tab === "products" && <AdminProducts />}
-        {tab === "setup" && <AdminSetup />}
-      </div>
+      {message && <Notice tone={message.tone}>{message.text}</Notice>}
+      {rows === null && <p className="text-sm text-slate-600">Loading products…</p>}
 
-      <div className="mt-10 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
-        Products, brands and categories show in the shop straight away. A new product&apos;s own page
-        goes live a few minutes after you switch it on, because the site rebuilds automatically.
-      </div>
-    </section>
+      <ul className="space-y-3">
+        {visible.map((row) => {
+          const photo = [...row.product_images].sort((a, b) => a.position - b.position)[0];
+          const open = openId === row.id;
+          const hidden = row.moderation === "hidden";
+
+          return (
+            <li key={row.id} className="rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-4">
+              <div className="flex gap-4">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-paper">
+                  {photo ? (
+                    <img src={photo.image_url} alt="" loading="lazy" className="h-full w-full object-contain p-1" />
+                  ) : (
+                    <span className="flex h-full items-center justify-center text-[10px] text-slate-400">
+                      No photo
+                    </span>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-ink">{row.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {row.brands?.name ?? "No brand"} · {row.sellers ? `Sold by ${row.sellers.display_name}` : "Sold by Sumus"} ·{" "}
+                    {summary(row)}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(row)}
+                      disabled={hidden}
+                      className={`rounded-full px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${
+                        row.is_active
+                          ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                          : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                      }`}
+                    >
+                      {hidden ? "Hidden by Sumus" : row.is_active ? "Visible in shop" : "Hidden"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleModeration(row)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
+                        hidden
+                          ? "border border-blue-700 text-blue-700 hover:bg-blue-50"
+                          : "border border-red-300 text-red-700 hover:bg-red-50"
+                      }`}
+                    >
+                      {hidden ? "Restore" : "Hide from shop"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOpenId(open ? null : row.id)}
+                      aria-expanded={open}
+                      className={GHOST}
+                    >
+                      {open ? "Close" : "Edit"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {open && (
+                <div className="mt-5 border-t border-slate-100 pt-5">
+                  <AdminProductEditor
+                    productId={row.id}
+                    brands={brands}
+                    categories={categories}
+                    onChanged={reload}
+                  />
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
