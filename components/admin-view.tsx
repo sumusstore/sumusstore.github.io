@@ -4,14 +4,17 @@ import { useEffect, useState } from "react";
 import { AdminEnquiries } from "@/components/admin-enquiries";
 import { AdminOrders } from "@/components/admin-orders";
 import { AdminProducts } from "@/components/admin-products";
+import { AdminSellers } from "@/components/admin-sellers";
 import { AdminSetup } from "@/components/admin-setup";
 import { markOrdersSeen, useAdminAlerts } from "@/hooks/use-admin-alerts";
+import { supabase } from "@/lib/supabase";
 
-type Tab = "orders" | "enquiries" | "products" | "setup";
+type Tab = "orders" | "enquiries" | "sellers" | "products" | "setup";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "orders", label: "Orders" },
   { value: "enquiries", label: "Enquiries" },
+  { value: "sellers", label: "Sellers" },
   { value: "products", label: "Products" },
   { value: "setup", label: "Brands and categories" },
 ];
@@ -28,12 +31,29 @@ function CountBadge({ count }: { count: number }) {
 
 export function AdminView() {
   const [tab, setTab] = useState<Tab>("orders");
+  const [pendingSellers, setPendingSellers] = useState(0);
+  const [sellerTick, setSellerTick] = useState(0);
   const { counts, version, refresh, alerts, requestAlerts } = useAdminAlerts();
   const total = counts.orders + counts.enquiries;
 
   useEffect(() => {
     document.title = total > 0 ? `(${total}) Store admin` : "Store admin";
   }, [total]);
+
+  // Counts applications waiting for a decision. Refreshes when the tab changes or a decision is saved.
+  useEffect(() => {
+    let active = true;
+    supabase
+      .from("sellers")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending")
+      .then(({ count }) => {
+        if (active) setPendingSellers(count ?? 0);
+      });
+    return () => {
+      active = false;
+    };
+  }, [tab, sellerTick]);
 
   async function handleGotIt() {
     await markOrdersSeen();
@@ -124,6 +144,7 @@ export function AdminView() {
             {item.label}
             {item.value === "orders" && <CountBadge count={counts.orders} />}
             {item.value === "enquiries" && <CountBadge count={counts.enquiries} />}
+            {item.value === "sellers" && <CountBadge count={pendingSellers} />}
           </button>
         ))}
       </div>
@@ -132,6 +153,7 @@ export function AdminView() {
         {/* Remounts the orders list when new orders arrive, so they appear without a reload. */}
         {tab === "orders" && <AdminOrders key={version} />}
         {tab === "enquiries" && <AdminEnquiries onChanged={refresh} />}
+        {tab === "sellers" && <AdminSellers onChanged={() => setSellerTick((count) => count + 1)} />}
         {tab === "products" && <AdminProducts />}
         {tab === "setup" && <AdminSetup />}
       </div>
