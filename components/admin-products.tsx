@@ -12,7 +12,9 @@ type ListRow = {
   name: string;
   slug: string;
   is_active: boolean;
+  moderation: "live" | "hidden";
   brands: { name: string } | null;
+  sellers: { display_name: string } | null;
   product_images: { image_url: string; position: number }[];
   product_variants: { price_kobo: number; stock_qty: number; is_active: boolean }[];
 };
@@ -53,7 +55,7 @@ export function AdminProducts() {
       supabase
         .from("products")
         .select(
-          "id, name, slug, is_active, brands(name), product_images(image_url, position), product_variants(price_kobo, stock_qty, is_active)"
+          "id, name, slug, is_active, moderation, brands(name), sellers(display_name), product_images(image_url, position), product_variants(price_kobo, stock_qty, is_active)"
         )
         .order("name"),
       supabase.from("brands").select("id, name, slug").order("name"),
@@ -90,6 +92,29 @@ export function AdminProducts() {
       setMessage({ tone: "error", text: "Couldn't change this product's visibility." });
       return;
     }
+    reload();
+  }
+
+  async function toggleModeration(row: ListRow) {
+    const hiding = row.moderation === "live";
+    const question = hiding
+      ? `Hide ${row.name} from the shop?${row.sellers ? " The seller can't show it again until you restore it." : ""}`
+      : `Restore ${row.name}? Switch it on afterwards to show it.`;
+    if (!window.confirm(question)) return;
+
+    const { error } = await supabase
+      .from("products")
+      .update(hiding ? { moderation: "hidden", is_active: false } : { moderation: "live" })
+      .eq("id", row.id);
+
+    if (error) {
+      setMessage({ tone: "error", text: "Couldn't change this product. Try again." });
+      return;
+    }
+    setMessage({
+      tone: "info",
+      text: hiding ? `${row.name} is hidden from the shop.` : `${row.name} is restored. Switch it on to show it.`,
+    });
     reload();
   }
 
@@ -135,17 +160,18 @@ export function AdminProducts() {
     (row) =>
       !query ||
       row.name.toLowerCase().includes(query) ||
-      (row.brands?.name ?? "").toLowerCase().includes(query)
+      (row.brands?.name ?? "").toLowerCase().includes(query) ||
+      (row.sellers?.display_name ?? "").toLowerCase().includes(query)
   );
 
   return (
     <div className="space-y-6">
       <form
         onSubmit={createProduct}
-        className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-end"
+        className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-end"
       >
         <div className="flex-1">
-          <label htmlFor="new-product" className="block text-sm font-medium text-slate-800">
+          <label htmlFor="new-product" className="block text-sm font-medium text-ink">
             New product name
           </label>
           <input
@@ -165,7 +191,7 @@ export function AdminProducts() {
         type="search"
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search products or brands"
+        placeholder="Search products, brands or sellers"
         aria-label="Search products"
         className={INPUT}
       />
@@ -177,11 +203,12 @@ export function AdminProducts() {
         {visible.map((row) => {
           const photo = [...row.product_images].sort((a, b) => a.position - b.position)[0];
           const open = openId === row.id;
+          const hidden = row.moderation === "hidden";
 
           return (
-            <li key={row.id} className="rounded-xl border border-slate-200 p-4">
+            <li key={row.id} className="rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-4">
               <div className="flex gap-4">
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-paper">
                   {photo ? (
                     <img src={photo.image_url} alt="" loading="lazy" className="h-full w-full object-contain p-1" />
                   ) : (
@@ -192,21 +219,34 @@ export function AdminProducts() {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900">{row.name}</p>
+                  <p className="font-semibold text-ink">{row.name}</p>
                   <p className="text-xs text-slate-500">
-                    {row.brands?.name ?? "No brand"} · {summary(row)}
+                    {row.brands?.name ?? "No brand"} · {row.sellers ? `Sold by ${row.sellers.display_name}` : "Sold by Sumus"} ·{" "}
+                    {summary(row)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => toggleActive(row)}
-                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                      disabled={hidden}
+                      className={`rounded-full px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${
                         row.is_active
-                          ? "bg-green-100 text-green-800 hover:bg-green-200"
+                          ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
                           : "bg-slate-200 text-slate-700 hover:bg-slate-300"
                       }`}
                     >
-                      {row.is_active ? "Visible in shop" : "Hidden"}
+                      {hidden ? "Hidden by Sumus" : row.is_active ? "Visible in shop" : "Hidden"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleModeration(row)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
+                        hidden
+                          ? "border border-blue-700 text-blue-700 hover:bg-blue-50"
+                          : "border border-red-300 text-red-700 hover:bg-red-50"
+                      }`}
+                    >
+                      {hidden ? "Restore" : "Hide from shop"}
                     </button>
                     <button
                       type="button"
