@@ -40,7 +40,7 @@ type Snapshot = {
   moderation: Moderation;
 };
 
-type Feedback = { tone: "error" | "info"; text: string } | null;
+type Feedback = { tone: "error" | "info"; text: string; details?: string[] } | null;
 
 type LoadedProduct = {
   id: string;
@@ -78,6 +78,20 @@ function Mini({ label, children }: { label: string; children: ReactNode }) {
       {children}
     </label>
   );
+}
+
+/** Turns a storage or database error into readable text, so the real cause shows on screen. */
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && err !== null) {
+    const e = err as { message?: unknown; statusCode?: unknown; code?: unknown };
+    const parts: string[] = [];
+    if (typeof e.message === "string") parts.push(e.message);
+    if (e.statusCode !== undefined) parts.push(`status ${String(e.statusCode)}`);
+    if (typeof e.code === "string") parts.push(`code ${e.code}`);
+    if (parts.length > 0) return parts.join(" · ");
+  }
+  return String(err);
 }
 
 function checklist(s: Snapshot): { label: string; ok: boolean }[] {
@@ -251,12 +265,14 @@ export function SellerProductEditor({
         const nowLive = await setVisibility(id, { ...snapshot, variants: remaining });
         setFeedback({
           tone: "info",
-          text: nowLive ? "Version removed. This product is still live." : "Version removed. This product isn't live until it has a version with a price.",
+          text: nowLive
+            ? "Version removed. This product is still live."
+            : "Version removed. This product isn't live until it has a version with a price.",
         });
       }
       onChanged();
     } catch (err) {
-      setFeedback({ tone: "error", text: err instanceof Error ? err.message : "Something went wrong. Try again." });
+      setFeedback({ tone: "error", text: describeError(err) });
     } finally {
       setBusy(false);
     }
@@ -352,7 +368,7 @@ export function SellerProductEditor({
       });
       refreshAll();
     } catch (err) {
-      setFeedback({ tone: "error", text: err instanceof Error ? err.message : "Something went wrong. Try again." });
+      setFeedback({ tone: "error", text: describeError(err) });
     } finally {
       setBusy(false);
     }
@@ -364,24 +380,38 @@ export function SellerProductEditor({
     setFeedback(null);
 
     let position = photos.length > 0 ? Math.max(...photos.map((p) => p.position)) + 1 : 0;
-    let failed = 0;
+    const problems: string[] = [];
 
     for (const file of files) {
+      const fileInfo = `"${file.name}" (${file.type || "unknown type"}, ${Math.round(file.size / 1024)} KB)`;
       try {
         const blob = await shrinkImage(file);
         const path = `${id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+
         const { error: uploadError } = await supabase.storage
           .from("product-images")
           .upload(path, blob, { contentType: "image/jpeg" });
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          problems.push(`${fileInfo}: storage refused the upload. ${describeError(uploadError)}`);
+          continue;
+        }
+
         const { data } = supabase.storage.from("product-images").getPublicUrl(path);
-        const { error: rowError } = await supabase
-          .from("product_images")
-          .insert({ product_id: id, variant_id: null, image_url: data.publicUrl, position });
-        if (rowError) throw rowError;
+        const { error: rowError } = await supabase.from("product_images").insert({
+          product_id: id,
+          variant_id: null,
+          image_url: data.publicUrl,
+          position,
+        });
+        if (rowError) {
+          problems.push(`${fileInfo}: the photo was uploaded but not saved. ${describeError(rowError)}`);
+          await supabase.storage.from("product-images").remove([path]);
+          continue;
+        }
+
         position += 1;
-      } catch {
-        failed += 1;
+      } catch (err) {
+        problems.push(`${fileInfo}: ${describeError(err)}`);
       }
     }
 
@@ -394,18 +424,26 @@ export function SellerProductEditor({
       const next = (fresh ?? []) as Photo[];
       setPhotos(next);
       const nowLive = await setVisibility(id, { ...snapshot, photoCount: next.length });
-      setFeedback({
-        tone: failed > 0 ? "error" : "info",
-        text:
-          failed > 0
-            ? `${failed} of ${files.length} photos couldn't be uploaded. Try again with fewer at a time.`
-            : nowLive
-              ? "Photos added. This product is live on Sumus."
-              : "Photos added.",
-      });
+
+      if (problems.length > 0) {
+        setFeedback({
+          tone: "error",
+          text: `${problems.length} of ${files.length} photos couldn't be uploaded.`,
+          details: problems,
+        });
+      } else {
+        setFeedback({
+          tone: "info",
+          text: nowLive ? "Photos added. This product is live on Sumus." : "Photos added.",
+        });
+      }
       onChanged();
     } catch (err) {
-      setFeedback({ tone: "error", text: err instanceof Error ? err.message : "Photos couldn't be updated." });
+      setFeedback({
+        tone: "error",
+        text: "The photos couldn't be checked against the product.",
+        details: [describeError(err)],
+      });
     } finally {
       setBusy(false);
     }
@@ -431,7 +469,7 @@ export function SellerProductEditor({
       });
       onChanged();
     } catch (err) {
-      setFeedback({ tone: "error", text: err instanceof Error ? err.message : "The photo couldn't be removed." });
+      setFeedback({ tone: "error", text: describeError(err) });
     } finally {
       setBusy(false);
     }
@@ -661,6 +699,13 @@ export function SellerProductEditor({
       </section>
 
       {feedback && <Notice tone={feedback.tone}>{feedback.text}</Notice>}
+      {feedback?.details && feedback.details.length > 0 && (
+        <ul className="space-y-2 rounded-lg border border-red-200 bg-white p-3 text-xs text-red-700">
+          {feedback.details.map((detail) => (
+            <li key={detail}>{detail}</li>
+          ))}
+        </ul>
+      )}
 
       <div>
         <button type="button" onClick={saveAll} disabled={busy} className={BUTTON}>
