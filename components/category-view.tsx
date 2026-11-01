@@ -39,8 +39,11 @@ export function CategoryView({ slug }: { slug: string }) {
   if (!node) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">Category not found</h1>
-        <Link href="/shop/" className="mt-4 inline-block font-semibold text-blue-700 hover:underline">
+        <h1 className="text-2xl font-bold text-ink">Category not found</h1>
+        <Link
+          href="/shop/"
+          className="mt-4 inline-block font-semibold text-blue-700 hover:underline"
+        >
           Browse all products
         </Link>
       </div>
@@ -65,7 +68,7 @@ export function CategoryView({ slug }: { slug: string }) {
           <span className="mx-2" aria-hidden="true">
             /
           </span>
-          <span className="text-slate-800">{node.name}</span>
+          <span className="text-ink">{node.name}</span>
         </nav>
       }
     >
@@ -75,7 +78,7 @@ export function CategoryView({ slug }: { slug: string }) {
             <li key={child.id}>
               <Link
                 href={`/category/${child.slug}/`}
-                className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-blue-600 hover:text-blue-700"
+                className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-ink hover:border-blue-700 hover:text-blue-700"
               >
                 {child.name}
               </Link>
