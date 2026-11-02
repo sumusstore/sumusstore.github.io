@@ -136,7 +136,19 @@ export function ProductCard({ product }: { product: ProductCardData }) {
         )}
       </div>
       <p className={`mt-1 text-xs font-medium ${stock.className}`}>{stock.text}</p>
-      <p className="mt-1 text-xs text-slate-500">Sold by {SITE.name}</p>
+      <p className="mt-1 text-xs text-slate-500">
+        Sold by{" "}
+        {product.sellerSlug && product.sellerName ? (
+          <Link
+            href={`/seller/${product.sellerSlug}/`}
+            className="font-semibold text-blue-700 hover:underline"
+          >
+            {product.sellerName}
+          </Link>
+        ) : (
+          SITE.name
+        )}
+      </p>
 
       <button
         type="button"
