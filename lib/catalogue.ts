@@ -21,6 +21,9 @@ export type CatalogueProduct = {
   categoryId: string | null;
   imageUrl: string | null;
   createdAt: string;
+  /** Null for products Sumus sells itself. */
+  sellerSlug: string | null;
+  sellerName: string | null;
   variants: VariantOption[];
 };
 
@@ -213,6 +216,8 @@ export function buildCards(
       stock: best.stock,
       saleEndsAt: best.saleEndsAt,
       createdAt: product.createdAt,
+      sellerSlug: product.sellerSlug,
+      sellerName: product.sellerName,
     });
   }
 
