@@ -56,6 +56,15 @@ async function countRows(table: string, column: string, id: string): Promise<num
   return count ?? 0;
 }
 
+/** The database's own words for a failed save, so the real cause shows on screen. */
+function detailOf(error: { message: string; code?: string; details?: string | null; hint?: string | null }): string {
+  const parts = [error.message];
+  if (error.details) parts.push(error.details);
+  if (error.hint) parts.push(`Hint: ${error.hint}`);
+  if (error.code) parts.push(`Code ${error.code}`);
+  return parts.join(" · ");
+}
+
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
 }
@@ -116,7 +125,10 @@ export function AdminSetup() {
     if (error) {
       setMessage({
         tone: "error",
-        text: error.code === "23505" ? `${name} is already in the list.` : "The brand couldn't be added.",
+        text:
+          error.code === "23505"
+            ? `${name} is already in the list.`
+            : `The brand couldn't be added. ${detailOf(error)}`,
       });
       return;
     }
@@ -151,7 +163,7 @@ export function AdminSetup() {
     setBusy(false);
 
     if (error) {
-      setMessage({ tone: "error", text: `${brand.name} couldn't be deleted. ${error.message}` });
+      setMessage({ tone: "error", text: `${brand.name} couldn't be deleted. ${detailOf(error)}` });
       return;
     }
 
@@ -190,7 +202,7 @@ export function AdminSetup() {
         text:
           error.code === "23505"
             ? "A category with this name or web address already exists."
-            : "The category couldn't be added.",
+            : `The category couldn't be added. ${detailOf(error)}`,
       });
       return;
     }
@@ -249,7 +261,7 @@ export function AdminSetup() {
         text:
           error.code === "23505"
             ? "Another category already uses that name or web address."
-            : "The category couldn't be saved.",
+            : `The category couldn't be saved. ${detailOf(error)}`,
       });
       return;
     }
@@ -299,7 +311,7 @@ export function AdminSetup() {
     setBusy(false);
 
     if (error) {
-      setMessage({ tone: "error", text: `${category.name} couldn't be deleted. ${error.message}` });
+      setMessage({ tone: "error", text: `${category.name} couldn't be deleted. ${detailOf(error)}` });
       return;
     }
 
