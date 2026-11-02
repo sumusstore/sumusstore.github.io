@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Notice } from "@/components/form-field";
 import { SellerProductEditor } from "@/components/seller-product-editor";
 import { useAuth } from "@/hooks/use-auth";
 import { formatNaira } from "@/lib/format";
@@ -13,15 +14,19 @@ type ProductRow = {
   id: string;
   name: string;
   is_active: boolean;
+  seller_paused: boolean;
   moderation: "live" | "hidden";
   product_images: { image_url: string; position: number }[];
   product_variants: { price_kobo: number; stock_qty: number; is_active: boolean }[];
 };
 
+type Feedback = { tone: "error" | "info"; text: string } | null;
+
 const CARD = "rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-6";
 
 function statusOf(row: ProductRow): { label: string; className: string } {
   if (row.moderation === "hidden") return { label: "Hidden by Sumus", className: "bg-red-50 text-red-700" };
+  if (row.seller_paused) return { label: "Paused by you", className: "bg-amber-50 text-amber-800" };
   if (row.is_active) return { label: "Live", className: "bg-blue-50 text-blue-700" };
   return { label: "Not live yet", className: "bg-gold/20 text-ink" };
 }
@@ -45,6 +50,8 @@ export function SellerDashboard() {
   const [products, setProducts] = useState<ProductRow[] | null>(null);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -68,7 +75,7 @@ export function SellerDashboard() {
     supabase
       .from("products")
       .select(
-        "id, name, is_active, moderation, product_images(image_url, position), product_variants(price_kobo, stock_qty, is_active)"
+        "id, name, is_active, seller_paused, moderation, product_images(image_url, position), product_variants(price_kobo, stock_qty, is_active)"
       )
       .eq("seller_id", seller.id)
       .order("created_at", { ascending: false })
@@ -79,6 +86,37 @@ export function SellerDashboard() {
       active = false;
     };
   }, [seller, reloadKey]);
+
+  async function togglePause(row: ProductRow) {
+    const pausing = !row.seller_paused;
+    if (
+      pausing &&
+      !window.confirm(`Pause ${row.name}? It leaves the shop straight away, and Sumus is told.`)
+    ) {
+      return;
+    }
+
+    setBusyId(row.id);
+    setFeedback(null);
+    const { error } = await supabase.rpc("seller_set_pause", {
+      p_product_id: row.id,
+      p_paused: pausing,
+    });
+    setBusyId(null);
+
+    if (error) {
+      setFeedback({ tone: "error", text: error.message });
+      return;
+    }
+
+    setFeedback({
+      tone: "info",
+      text: pausing
+        ? `${row.name} is paused and hidden from the shop. Sumus has been told.`
+        : `${row.name} is resumed. It goes live once every item in its checklist is complete.`,
+    });
+    setReloadKey((key) => key + 1);
+  }
 
   if (loading) {
     return <p className="text-sm text-slate-600">Checking your account…</p>;
@@ -162,6 +200,8 @@ export function SellerDashboard() {
             </button>
           </div>
 
+          {feedback && <Notice tone={feedback.tone}>{feedback.text}</Notice>}
+
           {products === null && <p className="text-sm text-slate-600">Loading your products…</p>}
           {products !== null && list.length === 0 && (
             <p className="text-sm text-slate-600">No products yet. Add your first one.</p>
@@ -171,6 +211,7 @@ export function SellerDashboard() {
             {list.map((row) => {
               const status = statusOf(row);
               const photo = [...row.product_images].sort((a, b) => a.position - b.position)[0];
+              const busy = busyId === row.id;
 
               return (
                 <li
@@ -191,17 +232,32 @@ export function SellerDashboard() {
                     <p className="text-sm text-slate-600">
                       {priceRange(row)} · {stockOf(row)} in stock
                     </p>
+                    {row.moderation === "hidden" && (
+                      <p className="mt-1 text-xs text-red-700">Contact Sumus to restore this product.</p>
+                    )}
                   </div>
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${status.className}`}>
                     {status.label}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setEditing(row.id)}
-                    className="rounded-full border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-                  >
-                    Edit
-                  </button>
+                  <div className="flex gap-2">
+                    {row.moderation !== "hidden" && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => togglePause(row)}
+                        className="rounded-full border border-slate-400 px-4 py-2 text-sm font-semibold text-ink hover:border-slate-700 disabled:text-slate-400"
+                      >
+                        {busy ? "Saving…" : row.seller_paused ? "Resume" : "Pause"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setEditing(row.id)}
+                      className="rounded-full border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                    >
+                      Edit
+                    </button>
+                  </div>
                 </li>
               );
             })}
