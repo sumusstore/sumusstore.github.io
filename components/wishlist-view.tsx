@@ -10,14 +10,23 @@ import { supabase } from "@/lib/supabase";
 import { useCartStore } from "@/stores/cart-store";
 import { useWishlistStore, type WishlistItem } from "@/stores/wishlist-store";
 
-type LiveInfo = { stock: number; priceKobo: number; available: boolean };
+type LiveInfo = {
+  stock: number;
+  priceKobo: number;
+  available: boolean;
+  sellerSlug: string | null;
+  sellerName: string | null;
+};
 
 type LiveRow = {
   id: string;
   price_kobo: number;
   stock_qty: number;
   is_active: boolean;
-  products: { is_active: boolean } | null;
+  products: {
+    is_active: boolean;
+    sellers: { slug: string; display_name: string } | null;
+  } | null;
 };
 
 function toCartItem(item: WishlistItem, info: LiveInfo) {
@@ -31,6 +40,22 @@ function toCartItem(item: WishlistItem, info: LiveInfo) {
     unitPriceKobo: info.priceKobo,
     stock: info.stock,
   };
+}
+
+/** Shows who sells a saved item: the seller linked to their shop, or Sumus for its own stock. */
+function SoldBy({ info }: { info: LiveInfo }) {
+  if (info.sellerSlug && info.sellerName) {
+    return (
+      <p className="mt-1 text-xs text-slate-500">
+        Sold by{" "}
+        <Link href={`/seller/${info.sellerSlug}/`} className="font-semibold text-blue-700 hover:underline">
+          {info.sellerName}
+        </Link>
+      </p>
+    );
+  }
+
+  return <p className="mt-1 text-xs text-slate-500">Sold by {SITE.name}</p>;
 }
 
 export function WishlistView() {
@@ -59,7 +84,7 @@ export function WishlistView() {
     async function loadLive() {
       const { data, error } = await supabase
         .from("product_variants")
-        .select("id, price_kobo, stock_qty, is_active, products(is_active)")
+        .select("id, price_kobo, stock_qty, is_active, products(is_active, sellers(slug, display_name))")
         .in("id", idList.split(","));
       if (!active) return;
       if (error) {
@@ -73,6 +98,8 @@ export function WishlistView() {
           stock: row.stock_qty,
           priceKobo: row.price_kobo,
           available: row.is_active && row.products?.is_active === true,
+          sellerSlug: row.products?.sellers?.slug ?? null,
+          sellerName: row.products?.sellers?.display_name ?? null,
         };
       }
       setLive(map);
@@ -143,6 +170,7 @@ export function WishlistView() {
                   {item.name}
                 </Link>
                 {item.variantLabel && <p className="text-sm text-slate-500">{item.variantLabel}</p>}
+                {ready && info && <SoldBy info={info} />}
                 <p className="mt-1 font-bold text-ink">{formatNaira(price)}</p>
 
                 <p className="mt-1 text-sm">
