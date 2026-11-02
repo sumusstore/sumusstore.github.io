@@ -38,6 +38,7 @@ type Snapshot = {
   photoCount: number;
   variants: Variant[];
   moderation: Moderation;
+  paused: boolean;
 };
 
 type Feedback = { tone: "error" | "info"; text: string; details?: string[] } | null;
@@ -51,6 +52,7 @@ type LoadedProduct = {
   specifications: Record<string, unknown> | null;
   warranty_period: string | null;
   is_active: boolean;
+  seller_paused: boolean;
   moderation: Moderation;
   product_images: Photo[];
   product_variants: {
@@ -107,15 +109,16 @@ function checklist(s: Snapshot): { label: string; ok: boolean }[] {
   ];
 }
 
+/** A paused product stays hidden, even when every item is complete. */
 function isReady(s: Snapshot): boolean {
-  return s.moderation === "live" && checklist(s).every((item) => item.ok);
+  return !s.paused && s.moderation === "live" && checklist(s).every((item) => item.ok);
 }
 
 function randomCode(length: number): string {
   return Math.random().toString(36).slice(2, 2 + length).toUpperCase();
 }
 
-/** Saves a seller's product. It goes live by itself once every item is complete, unless Sumus has hidden it. */
+/** Saves a seller's product. It goes live by itself once every item is complete, unless Sumus has hidden it or the seller has paused it. */
 export function SellerProductEditor({
   sellerId,
   productId,
@@ -140,6 +143,7 @@ export function SellerProductEditor({
   const [variants, setVariants] = useState<Variant[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [moderation, setModeration] = useState<Moderation>("live");
+  const [paused, setPaused] = useState(false);
   const [live, setLive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -158,6 +162,7 @@ export function SellerProductEditor({
     photoCount: photos.length,
     variants,
     moderation,
+    paused,
   };
   const checks = checklist(snapshot);
 
@@ -185,7 +190,7 @@ export function SellerProductEditor({
     supabase
       .from("products")
       .select(
-        "id, name, brand_id, category_id, description, specifications, warranty_period, is_active, moderation, product_images(id, image_url, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, stock_qty, is_active)"
+        "id, name, brand_id, category_id, description, specifications, warranty_period, is_active, seller_paused, moderation, product_images(id, image_url, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, stock_qty, is_active)"
       )
       .eq("id", id)
       .maybeSingle()
@@ -204,6 +209,7 @@ export function SellerProductEditor({
         setSpecs(specsToText(row.specifications ?? {}));
         setWarranty(row.warranty_period ?? "");
         setModeration(row.moderation);
+        setPaused(row.seller_paused);
         setLive(row.is_active);
         setPhotos([...row.product_images].sort((a, b) => a.position - b.position));
         setVariants(
@@ -229,7 +235,7 @@ export function SellerProductEditor({
     onChanged();
   }
 
-  /** Shows the product if it's complete and Sumus hasn't hidden it, and hides it otherwise. */
+  /** Shows the product if it's complete, not paused and not hidden by Sumus. Otherwise it stays hidden. */
   async function setVisibility(productRef: string, s: Snapshot): Promise<boolean> {
     const next = isReady(s);
     const { error } = await supabase.from("products").update({ is_active: next }).eq("id", productRef);
@@ -422,9 +428,11 @@ export function SellerProductEditor({
         text:
           moderation === "hidden"
             ? "Saved. Sumus has hidden this product, so it can't be shown until Sumus restores it."
-            : nowLive
-              ? "Saved. This product is live on Sumus."
-              : "Saved. It goes live once every item in the checklist is complete.",
+            : paused
+              ? "Saved. This product stays hidden while it's paused. Resume it on My shop when you're ready."
+              : nowLive
+                ? "Saved. This product is live on Sumus."
+                : "Saved. It goes live once every item in the checklist is complete.",
       });
       refreshAll();
     } catch (err) {
@@ -543,9 +551,11 @@ export function SellerProductEditor({
   const statusText =
     moderation === "hidden"
       ? "Hidden by Sumus. It can't be shown until Sumus restores it."
-      : live
-        ? "Live on Sumus."
-        : "Not live yet. It goes live once the checklist is complete.";
+      : paused
+        ? "Paused by you. It stays hidden until you resume it on My shop."
+        : live
+          ? "Live on Sumus."
+          : "Not live yet. It goes live once the checklist is complete.";
 
   return (
     <div className="space-y-6 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5">
