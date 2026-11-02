@@ -225,6 +225,10 @@ export function ProductDetailView({ slug }: { slug: string }) {
   const lagosZone = zones.find((zone) => zone.name === "Lagos");
   const outsideZone = zones.find((zone) => zone.name === "Outside Lagos");
 
+  // Sumus's own products show Sumus. Seller products show the seller, with a link to their shop.
+  const sellerName = product.sellerName ?? SITE.name;
+  const sellerHref = product.sellerSlug ? `/seller/${product.sellerSlug}/` : "/about/";
+
   function closeModal() {
     setModal(null);
   }
@@ -361,18 +365,20 @@ export function ProductDetailView({ slug }: { slug: string }) {
             aria-hidden="true"
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-700 text-lg font-extrabold text-white"
           >
-            {SITE.name.charAt(0)}
+            {sellerName.charAt(0)}
           </span>
           <div className="min-w-0">
-            <Link href="/about/" className="block font-bold text-ink hover:text-blue-700 hover:underline">
-              {SITE.name}
+            <Link href={sellerHref} className="block font-bold text-ink hover:text-blue-700 hover:underline">
+              {sellerName}
             </Link>
             <p className="text-sm text-slate-600">
               {reviewSummary
                 ? `${reviewSummary.average.toFixed(1)} out of 5 · ${reviewSummary.count} ${
                     reviewSummary.count === 1 ? "review" : "reviews"
                   }`
-                : "Genuine products · Warranty on every item"}
+                : product.sellerSlug
+                  ? "Seller on Sumus"
+                  : "Genuine products · Sold by Sumus"}
             </p>
           </div>
         </div>
@@ -544,9 +550,14 @@ export function ProductDetailView({ slug }: { slug: string }) {
       <section className="mt-6 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5">
         <h2 className="text-base font-bold text-ink">Shop with confidence</h2>
         <ul className="mt-3 space-y-2 text-sm text-slate-700">
-          <li>✓ Genuine products, sold by {SITE.name}</li>
           <li>
-            ✓ Warranty on every item.{" "}
+            ✓{" "}
+            {product.sellerSlug
+              ? `Sold by ${sellerName}`
+              : `Genuine products, sold by ${SITE.name}`}
+          </li>
+          <li>
+            ✓ {product.warrantyPeriod ? `Warranty: ${product.warrantyPeriod}.` : "Warranty information."}{" "}
             <Link href="/warranty/" className="font-semibold text-blue-700 hover:underline">
               Details
             </Link>
@@ -658,7 +669,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
               <span className="min-w-0">
                 <span className="block font-semibold text-ink">Item description</span>
                 <span className="mt-1 block truncate text-sm text-slate-600">
-                  Condition, brand and specifications
+                  Condition, brand, warranty and specifications
                 </span>
               </span>
               <ChevronDownIcon className="h-5 w-5 shrink-0 -rotate-90 text-ink" />
@@ -670,7 +681,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
               className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50"
             >
               <span className="min-w-0">
-                <span className="block font-semibold text-ink">Description from {SITE.name}</span>
+                <span className="block font-semibold text-ink">Description from {sellerName}</span>
                 <span className="mt-1 block truncate text-sm text-slate-600">
                   {product.description ?? "A full description will be added soon."}
                 </span>
@@ -728,6 +739,8 @@ export function ProductDetailView({ slug }: { slug: string }) {
         <dl className="divide-y divide-slate-200">
           <DetailRow label="Condition" value="New" />
           <DetailRow label="Brand" value={product.brand ?? "Not listed"} />
+          <DetailRow label="Sold by" value={sellerName} />
+          <DetailRow label="Warranty" value={product.warrantyPeriod ?? "Not listed"} />
           {Object.entries(product.specifications).map(([key, value]) => (
             <DetailRow key={key} label={key} value={String(value)} />
           ))}
@@ -737,7 +750,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
         )}
       </Modal>
 
-      <Modal title={`Description from ${SITE.name}`} open={modal === "description"} onClose={closeModal}>
+      <Modal title={`Description from ${sellerName}`} open={modal === "description"} onClose={closeModal}>
         <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
           {product.description ?? "A full description will be added soon."}
         </p>
