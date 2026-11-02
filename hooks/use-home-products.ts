@@ -17,6 +17,9 @@ export type ProductCardData = {
   stock: number;
   saleEndsAt: string | null;
   createdAt: string;
+  /** Null for products Sumus sells itself. */
+  sellerSlug: string | null;
+  sellerName: string | null;
 };
 
 export type HomeProducts = {
@@ -42,13 +45,14 @@ type VariantRow = {
     created_at: string;
     brands: { name: string } | null;
     product_images: { image_url: string; position: number }[];
+    sellers: { slug: string; display_name: string } | null;
   } | null;
 };
 
-// One query loads every active variant with its product, brand and images.
-// The catalogue is small for now. We can move this to server-side paging later.
+// One query loads every active variant with its product, brand, images and seller.
+// The seller join is optional, so Sumus's own products still load.
 const VARIANT_SELECT =
-  "id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, products!inner(id, name, slug, created_at, brands(name), product_images(image_url, position))";
+  "id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, products!inner(id, name, slug, created_at, brands(name), product_images(image_url, position), sellers(slug, display_name))";
 
 function toCard(row: VariantRow): ProductCardData | null {
   const product = row.products;
@@ -69,6 +73,8 @@ function toCard(row: VariantRow): ProductCardData | null {
     stock: row.stock_qty,
     saleEndsAt: row.sale_ends_at,
     createdAt: product.created_at,
+    sellerSlug: product.sellers?.slug ?? null,
+    sellerName: product.sellers?.display_name ?? null,
   };
 }
 
