@@ -2,16 +2,39 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { formatNaira } from "@/lib/format";
 import { SITE } from "@/lib/site-config";
+import { supabase } from "@/lib/supabase";
 import { selectSubtotalKobo, useCartStore, type CartItem } from "@/stores/cart-store";
 import { useWishlistStore } from "@/stores/wishlist-store";
+
+type SellerLink = { sellerSlug: string | null; sellerName: string | null };
 
 function stockNote(stock: number): { text: string; className: string } | null {
   if (stock <= 0) return { text: "Sold out. Remove this item to check out.", className: "text-red-600" };
   if (stock <= 5) return { text: `Only ${stock} left`, className: "text-amber-700" };
   return null;
+}
+
+/** Shows who sells an item: the seller linked to their shop, or Sumus for its own stock. */
+function SoldBy({ seller }: { seller: SellerLink | undefined }) {
+  // No entry means the product is no longer on sale, so nothing is shown for it.
+  if (!seller) return null;
+
+  if (seller.sellerSlug && seller.sellerName) {
+    return (
+      <p className="mt-1 text-xs text-slate-500">
+        Sold by{" "}
+        <Link href={`/seller/${seller.sellerSlug}/`} className="font-semibold text-blue-700 hover:underline">
+          {seller.sellerName}
+        </Link>
+      </p>
+    );
+  }
+
+  return <p className="mt-1 text-xs text-slate-500">Sold by {SITE.name}</p>;
 }
 
 export function CartView() {
@@ -20,6 +43,54 @@ export function CartView() {
   const subtotalKobo = useCartStore(selectSubtotalKobo);
   const setQuantity = useCartStore((state) => state.setQuantity);
   const removeItem = useCartStore((state) => state.removeItem);
+
+  const [sellers, setSellers] = useState<Record<string, SellerLink>>({});
+  const [sellersReady, setSellersReady] = useState(false);
+
+  // Changes only when the products in the cart change.
+  const productIds = items.map((item) => item.productId).sort().join(",");
+
+  // Looks up each item's seller from its product, so carts saved before this update still show the right seller.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!productIds) {
+      setSellers({});
+      setSellersReady(true);
+      return;
+    }
+
+    let active = true;
+
+    supabase
+      .from("products")
+      .select("id, sellers(slug, display_name)")
+      .in("id", productIds.split(","))
+      .then(({ data, error }) => {
+        if (!active) return;
+
+        if (error) {
+          setSellersReady(true);
+          return;
+        }
+
+        const map: Record<string, SellerLink> = {};
+        for (const row of (data ?? []) as unknown as {
+          id: string;
+          sellers: { slug: string; display_name: string } | null;
+        }[]) {
+          map[row.id] = {
+            sellerSlug: row.sellers?.slug ?? null,
+            sellerName: row.sellers?.display_name ?? null,
+          };
+        }
+        setSellers(map);
+        setSellersReady(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [hydrated, productIds]);
 
   // Wait for the browser to load the saved cart, so the page doesn't flash "empty".
   if (!hydrated) {
@@ -103,7 +174,7 @@ export function CartView() {
                       {item.variantLabel && (
                         <p className="text-sm text-slate-500">{item.variantLabel}</p>
                       )}
-                      <p className="mt-1 text-xs text-slate-500">Sold by {SITE.name}</p>
+                      {sellersReady && <SoldBy seller={sellers[item.productId]} />}
                     </div>
 
                     <p className="shrink-0 text-right">
