@@ -15,6 +15,8 @@ type MobileMenuProps = {
 
 const helpLinks = [
   { label: "Shop all products", href: "/shop/" },
+  { label: "Sellers", href: "/sellers/" },
+  { label: "Sell on Sumus", href: "/sell/" },
   { label: "Store locator", href: "/stores/" },
   { label: "Track an order", href: "/track/" },
   { label: "My account", href: "/account/" },
