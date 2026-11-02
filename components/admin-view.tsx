@@ -19,6 +19,13 @@ const TABS: { value: Tab; label: string }[] = [
   { value: "setup", label: "Brands and categories" },
 ];
 
+type PausedRow = {
+  id: string;
+  name: string;
+  seller_paused_at: string | null;
+  sellers: { display_name: string } | null;
+};
+
 /** A small gold count shown beside a tab name. Hidden when the count is zero. */
 function CountBadge({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -33,12 +40,15 @@ export function AdminView() {
   const [tab, setTab] = useState<Tab>("orders");
   const [pendingSellers, setPendingSellers] = useState(0);
   const [sellerTick, setSellerTick] = useState(0);
+  const [paused, setPaused] = useState<PausedRow[]>([]);
+  const [pauseTick, setPauseTick] = useState(0);
   const { counts, version, refresh, alerts, requestAlerts } = useAdminAlerts();
-  const total = counts.orders + counts.enquiries;
+  const newWork = counts.orders + counts.enquiries;
+  const titleCount = newWork + paused.length;
 
   useEffect(() => {
-    document.title = total > 0 ? `(${total}) Store admin` : "Store admin";
-  }, [total]);
+    document.title = titleCount > 0 ? `(${titleCount}) Store admin` : "Store admin";
+  }, [titleCount]);
 
   // Counts applications waiting for a decision. Refreshes when the tab changes or a decision is saved.
   useEffect(() => {
@@ -55,9 +65,40 @@ export function AdminView() {
     };
   }, [tab, sellerTick]);
 
+  // Products that sellers have paused and Sumus hasn't acknowledged. Checked every minute.
+  useEffect(() => {
+    let active = true;
+
+    async function loadPaused() {
+      const { data } = await supabase
+        .from("products")
+        .select("id, name, seller_paused_at, sellers(display_name)")
+        .eq("seller_paused", true)
+        .eq("pause_seen_by_admin", false)
+        .order("seller_paused_at", { ascending: false });
+      if (active) setPaused((data ?? []) as unknown as PausedRow[]);
+    }
+
+    loadPaused();
+    const timer = window.setInterval(loadPaused, 60000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [tab, pauseTick]);
+
   async function handleGotIt() {
     await markOrdersSeen();
     refresh();
+  }
+
+  async function markPausesSeen() {
+    await supabase
+      .from("products")
+      .update({ pause_seen_by_admin: true })
+      .eq("seller_paused", true)
+      .eq("pause_seen_by_admin", false);
+    setPauseTick((count) => count + 1);
   }
 
   const alertParts: string[] = [];
@@ -74,7 +115,41 @@ export function AdminView() {
     <section className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="text-3xl font-bold text-ink">Store admin</h1>
 
-      {total > 0 && (
+      {paused.length > 0 && (
+        <div className="mt-6 rounded-xl border border-red-200 border-t-4 border-t-red-600 bg-white p-4">
+          <p className="font-semibold text-ink">
+            {paused.length === 1 ? "A seller has paused a product" : `${paused.length} sellers have paused products`}
+          </p>
+          <ul className="mt-2 space-y-1 text-sm text-slate-700">
+            {paused.map((row) => (
+              <li key={row.id}>
+                {row.name} · {row.sellers?.display_name ?? "Seller"}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">
+            Paused products stay hidden until the seller resumes them, or you restore them from the Products tab.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setTab("products")}
+              className="rounded-full bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+            >
+              Open products
+            </button>
+            <button
+              type="button"
+              onClick={markPausesSeen}
+              className="rounded-full border border-blue-700 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+            >
+              Mark as seen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {newWork > 0 && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-4">
           <p className="font-semibold text-ink">{alertParts.join(" and ")}.</p>
           <div className="flex flex-wrap gap-2">
@@ -145,6 +220,7 @@ export function AdminView() {
             {item.value === "orders" && <CountBadge count={counts.orders} />}
             {item.value === "enquiries" && <CountBadge count={counts.enquiries} />}
             {item.value === "sellers" && <CountBadge count={pendingSellers} />}
+            {item.value === "products" && <CountBadge count={paused.length} />}
           </button>
         ))}
       </div>
