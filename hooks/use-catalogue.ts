@@ -21,12 +21,13 @@ type VariantRow = {
     category_id: string | null;
     brands: { name: string } | null;
     product_images: { image_url: string; position: number }[];
+    sellers: { slug: string; display_name: string } | null;
   } | null;
 };
 
-// Every active variant with its product, brand and photos, in one request.
+// Every active variant with its product, brand, photos and seller, in one request.
 const CATALOGUE_SELECT =
-  "id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, products!inner(id, name, slug, created_at, category_id, brands(name), product_images(image_url, position))";
+  "id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, products!inner(id, name, slug, created_at, category_id, brands(name), product_images(image_url, position), sellers(slug, display_name))";
 
 /** Groups variant rows under their product, so each product appears once with all its variants. */
 function groupByProduct(rows: VariantRow[]): CatalogueProduct[] {
@@ -47,6 +48,8 @@ function groupByProduct(rows: VariantRow[]): CatalogueProduct[] {
         categoryId: product.category_id,
         imageUrl: firstImage?.image_url ?? null,
         createdAt: product.created_at,
+        sellerSlug: product.sellers?.slug ?? null,
+        sellerName: product.sellers?.display_name ?? null,
         variants: [],
       };
       byId.set(product.id, entry);
