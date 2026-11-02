@@ -31,11 +31,12 @@ type ProductRow = {
     stock_qty: number;
     is_active: boolean;
   }[];
+  sellers: { slug: string; display_name: string } | null;
 };
 
 // The sellers!inner join keeps only products from approved sellers with this shop address.
 const PRODUCT_SELECT =
-  "id, name, slug, created_at, brands(name), product_images(image_url, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, is_active), sellers!inner(slug)";
+  "id, name, slug, created_at, brands(name), product_images(image_url, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, is_active), sellers!inner(slug, display_name)";
 
 function toCatalogue(row: ProductRow): CatalogueProduct {
   const firstImage = [...row.product_images].sort((a, b) => a.position - b.position)[0];
@@ -47,6 +48,8 @@ function toCatalogue(row: ProductRow): CatalogueProduct {
     categoryId: null,
     imageUrl: firstImage?.image_url ?? null,
     createdAt: row.created_at,
+    sellerSlug: row.sellers?.slug ?? null,
+    sellerName: row.sellers?.display_name ?? null,
     variants: row.product_variants
       .filter((v) => v.is_active)
       .map((v) => ({
