@@ -11,6 +11,7 @@ const shopLinks: FooterLink[] = [
   { label: "Smart Home", href: "/category/smart-home/" },
   { label: "Accessories", href: "/category/accessories/" },
   { label: "All products", href: "/shop/" },
+  { label: "Sellers", href: "/sellers/" },
 ];
 
 const helpLinks: FooterLink[] = [
@@ -23,6 +24,7 @@ const helpLinks: FooterLink[] = [
 
 const companyLinks: FooterLink[] = [
   { label: "About us", href: "/about/" },
+  { label: "Sell on Sumus", href: "/sell/" },
   { label: "Store locator", href: "/stores/" },
   { label: "Bulk sales", href: "/bulk/" },
   { label: "Contact us", href: "/contact/" },
