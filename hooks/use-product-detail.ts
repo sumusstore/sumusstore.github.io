@@ -38,6 +38,10 @@ export type ProductDetail = {
   categoryId: string | null;
   categoryName: string | null;
   categorySlug: string | null;
+  /** Null for products Sumus sells itself. */
+  sellerSlug: string | null;
+  sellerName: string | null;
+  warrantyPeriod: string | null;
   images: DetailImage[];
   variants: DetailVariant[];
   reviews: DetailReview[];
@@ -49,8 +53,10 @@ type ProductRow = {
   slug: string;
   description: string | null;
   specifications: Record<string, unknown> | null;
+  warranty_period: string | null;
   brands: { name: string } | null;
   categories: { id: string; name: string; slug: string } | null;
+  sellers: { slug: string; display_name: string } | null;
   product_images: { image_url: string; variant_id: string | null; position: number }[];
   product_variants: {
     id: string;
@@ -65,10 +71,10 @@ type ProductRow = {
   reviews: { id: string; rating: number; comment: string | null; created_at: string }[];
 };
 
-// One request loads the product with its brand, category, photos, variants and reviews.
+// One request loads the product with its brand, category, seller, photos, variants and reviews.
 // The database rules only return approved reviews to shoppers.
 const PRODUCT_SELECT =
-  "id, name, slug, description, specifications, brands(name), categories(id, name, slug), product_images(image_url, variant_id, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, is_active), reviews(id, rating, comment, created_at)";
+  "id, name, slug, description, specifications, warranty_period, brands(name), categories(id, name, slug), sellers(slug, display_name), product_images(image_url, variant_id, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, is_active), reviews(id, rating, comment, created_at)";
 
 function toDetail(row: ProductRow): ProductDetail {
   return {
@@ -81,6 +87,9 @@ function toDetail(row: ProductRow): ProductDetail {
     categoryId: row.categories?.id ?? null,
     categoryName: row.categories?.name ?? null,
     categorySlug: row.categories?.slug ?? null,
+    sellerSlug: row.sellers?.slug ?? null,
+    sellerName: row.sellers?.display_name ?? null,
+    warrantyPeriod: row.warranty_period,
     images: row.product_images.map((image) => ({
       url: image.image_url,
       variantId: image.variant_id,
