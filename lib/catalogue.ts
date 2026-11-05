@@ -24,6 +24,8 @@ export type CatalogueProduct = {
   /** Null for products Sumus sells itself. */
   sellerSlug: string | null;
   sellerName: string | null;
+  /** Category names and the values filled in for the product, so shoppers can search by them. */
+  searchText?: string;
   variants: VariantOption[];
 };
 
@@ -102,12 +104,22 @@ function matchesQuery(product: CatalogueProduct, query: string): boolean {
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return true;
 
-  const haystack = [product.name, product.brand ?? "", ...product.variants.map((v) => v.label)]
+  const haystack = [
+    product.name,
+    product.brand ?? "",
+    product.searchText ?? "",
+    ...product.variants.map((v) => v.label),
+  ]
     .join(" ")
     .toLowerCase();
 
-  // Every word typed must appear somewhere in the product's name, brand, or variants.
-  return tokens.every((token) => haystack.includes(token));
+  // Every word typed must appear somewhere in the product's name, brand, category, details or variants.
+  // A plural also matches its singular, so "smartphones" finds "Smartphone".
+  return tokens.every(
+    (token) =>
+      haystack.includes(token) ||
+      (token.length > 3 && token.endsWith("s") && haystack.includes(token.slice(0, -1)))
+  );
 }
 
 /** Applies the page scope (a category, or a search) before the sidebar filters. */
