@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AdminConversations } from "@/components/admin-conversations";
 import { AdminEnquiries } from "@/components/admin-enquiries";
 import { AdminFields } from "@/components/admin-fields";
 import { AdminOrders } from "@/components/admin-orders";
@@ -10,11 +11,12 @@ import { AdminSetup } from "@/components/admin-setup";
 import { markOrdersSeen, useAdminAlerts } from "@/hooks/use-admin-alerts";
 import { supabase } from "@/lib/supabase";
 
-type Tab = "orders" | "enquiries" | "sellers" | "products" | "fields" | "setup";
+type Tab = "orders" | "enquiries" | "messages" | "sellers" | "products" | "fields" | "setup";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "orders", label: "Orders" },
   { value: "enquiries", label: "Enquiries" },
+  { value: "messages", label: "Messages" },
   { value: "sellers", label: "Sellers" },
   { value: "products", label: "Products" },
   { value: "fields", label: "Product fields" },
@@ -231,6 +233,7 @@ export function AdminView() {
         {/* Remounts the orders list when new orders arrive, so they appear without a reload. */}
         {tab === "orders" && <AdminOrders key={version} />}
         {tab === "enquiries" && <AdminEnquiries onChanged={refresh} />}
+        {tab === "messages" && <AdminConversations />}
         {tab === "sellers" && <AdminSellers onChanged={() => setSellerTick((count) => count + 1)} />}
         {tab === "products" && <AdminProducts />}
         {tab === "fields" && <AdminFields />}
