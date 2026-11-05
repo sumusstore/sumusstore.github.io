@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { CatalogueView } from "@/components/catalogue-view";
 import { useCategoryTree, type CategoryNode } from "@/hooks/use-category-tree";
+import { useFilterFields } from "@/hooks/use-filter-fields";
 
 function findCategory(nodes: CategoryNode[], slug: string): CategoryNode | null {
   for (const node of nodes) {
@@ -23,6 +24,9 @@ export function CategoryView({ slug }: { slug: string }) {
   const { tree, status } = useCategoryTree();
   const node = useMemo(() => findCategory(tree, slug), [tree, slug]);
   const categoryIds = useMemo(() => (node ? collectIds(node) : []), [node]);
+
+  // Detail filters belong to subcategories, so a category that has subcategories has none.
+  const filterFields = useFilterFields(node && node.children.length === 0 ? node.id : null);
 
   if (status === "loading") {
     return <p className="mx-auto max-w-6xl px-4 py-8 text-sm text-slate-600">Loading category…</p>;
@@ -52,8 +56,10 @@ export function CategoryView({ slug }: { slug: string }) {
 
   return (
     <CatalogueView
+      key={node.slug}
       title={node.name}
       categoryIds={categoryIds}
+      filterFields={filterFields}
       breadcrumb={
         <nav aria-label="Breadcrumb" className="mb-3 text-sm text-slate-500">
           <Link href="/" className="hover:text-blue-700">
