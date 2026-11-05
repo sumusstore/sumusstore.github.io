@@ -83,13 +83,17 @@ export function AdminProducts() {
   }
 
   async function toggleActive(row: ListRow) {
+    setMessage(null);
     const { error } = await supabase
       .from("products")
       .update({ is_active: !row.is_active })
       .eq("id", row.id);
 
     if (error) {
-      setMessage({ tone: "error", text: "Couldn't change this product's visibility." });
+      setMessage({
+        tone: "error",
+        text: `Couldn't change this product's visibility. ${error.message}`,
+      });
       return;
     }
     reload();
@@ -149,7 +153,7 @@ export function AdminProducts() {
     setNewName("");
     setMessage({
       tone: "info",
-      text: `${name} is created and hidden from the shop. Add a variant with a price, then switch the product on.`,
+      text: `${name} is created and hidden from the shop. Choose its subcategory, fill in its details, add a variant with a price, then switch the product on.`,
     });
     setOpenId(data.id);
     reload();
