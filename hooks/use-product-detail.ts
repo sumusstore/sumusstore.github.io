@@ -118,6 +118,24 @@ function toDetail(row: ProductRow): ProductDetail {
   };
 }
 
+/**
+ * The database doesn't keep the order of saved details, so they are listed here in the order
+ * the admin set the category's fields. Any other details follow after.
+ */
+function orderSpecs(
+  specs: Record<string, unknown>,
+  fields: { label: string }[]
+): Record<string, unknown> {
+  const ordered: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (Object.prototype.hasOwnProperty.call(specs, field.label)) ordered[field.label] = specs[field.label];
+  }
+  for (const [key, value] of Object.entries(specs)) {
+    if (!Object.prototype.hasOwnProperty.call(ordered, key)) ordered[key] = value;
+  }
+  return ordered;
+}
+
 export function useProductDetail(slug: string) {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
@@ -140,7 +158,20 @@ export function useProductDetail(slug: string) {
           return;
         }
 
-        setProduct(data ? toDetail(data as unknown as ProductRow) : null);
+        const detail = data ? toDetail(data as unknown as ProductRow) : null;
+
+        // A failed field lookup only means the details stay in their saved order.
+        if (detail && detail.categoryId && Object.keys(detail.specifications).length > 0) {
+          const { data: fieldRows } = await supabase
+            .from("category_fields")
+            .select("label, sort_order")
+            .eq("category_id", detail.categoryId)
+            .order("sort_order", { ascending: true });
+          if (!active) return;
+          detail.specifications = orderSpecs(detail.specifications, (fieldRows ?? []) as { label: string }[]);
+        }
+
+        setProduct(detail);
         setStatus("ready");
       } catch {
         if (active) setStatus("error");
