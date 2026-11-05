@@ -2,8 +2,8 @@ import { PRICE_BANDS, type CatalogueFilters, type Facets, type SpecFacet } from 
 
 type FilterPanelProps = {
   facets: Facets;
-  /** Detail filters for the category being viewed, such as RAM or Network. */
-  specFacets: SpecFacet[];
+  /** Detail filters for a subcategory, such as RAM or Screen type. */
+  specFacets?: SpecFacet[];
   filters: CatalogueFilters;
   onChange: (next: CatalogueFilters) => void;
 };
@@ -44,7 +44,7 @@ function CheckboxGroup({ title, options, selected, onToggle }: CheckboxGroupProp
   );
 }
 
-export function FilterPanel({ facets, specFacets, filters, onChange }: FilterPanelProps) {
+export function FilterPanel({ facets, specFacets = [], filters, onChange }: FilterPanelProps) {
   return (
     <div className="space-y-6">
       <CheckboxGroup
@@ -88,22 +88,23 @@ export function FilterPanel({ facets, specFacets, filters, onChange }: FilterPan
         onToggle={(value) => onChange({ ...filters, colours: toggle(filters.colours, value) })}
       />
 
-      {specFacets.map((facet) => {
-        const label = facet.field.label;
-        const chosen = filters.specs[label] ?? [];
-
-        return (
-          <CheckboxGroup
-            key={label}
-            title={label}
-            options={facet.options}
-            selected={chosen}
-            onToggle={(value) =>
-              onChange({ ...filters, specs: { ...filters.specs, [label]: toggle(chosen, value) } })
-            }
-          />
-        );
-      })}
+      {specFacets.map(({ field, options }) => (
+        <CheckboxGroup
+          key={field.label}
+          title={field.label}
+          options={options}
+          selected={filters.specs[field.label] ?? []}
+          onToggle={(value) =>
+            onChange({
+              ...filters,
+              specs: {
+                ...filters.specs,
+                [field.label]: toggle(filters.specs[field.label] ?? [], value),
+              },
+            })
+          }
+        />
+      ))}
 
       <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-900">
         <input
