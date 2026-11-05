@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Notice } from "@/components/form-field";
 import {
   koboToNairaText,
@@ -29,16 +29,30 @@ type Variant = {
 
 type Moderation = "live" | "hidden";
 
+type FieldType = "text" | "number" | "choice";
+
+type CategoryField = {
+  id: string;
+  label: string;
+  field_type: FieldType;
+  unit: string | null;
+  options: string[];
+  is_required: boolean;
+  sort_order: number;
+};
+
 type Snapshot = {
   name: string;
   brandId: string;
-  categoryId: string;
+  categoryOk: boolean;
   description: string;
   warranty: string;
   photoCount: number;
   variants: Variant[];
   moderation: Moderation;
   paused: boolean;
+  fieldsReady: boolean;
+  fieldChecks: { label: string; ok: boolean }[];
 };
 
 type Feedback = { tone: "error" | "info"; text: string; details?: string[] } | null;
@@ -101,21 +115,52 @@ function checklist(s: Snapshot): { label: string; ok: boolean }[] {
   return [
     { label: "Product name (at least 3 characters)", ok: s.name.trim().length >= 3 },
     { label: "Brand", ok: s.brandId !== "" },
-    { label: "Category", ok: s.categoryId !== "" },
+    { label: "Category (choose a subcategory)", ok: s.categoryOk },
     { label: "Description (at least 20 characters)", ok: s.description.trim().length >= 20 },
     { label: "Warranty period, such as 12 months", ok: s.warranty.trim().length > 0 },
     { label: "At least one photo", ok: s.photoCount > 0 },
     { label: "A shown version with a price", ok: priced },
+    ...s.fieldChecks,
   ];
 }
 
-/** A paused product stays hidden, even when every item is complete. */
+/** A paused product stays hidden, and so does one whose category details haven't loaded or are incomplete. */
 function isReady(s: Snapshot): boolean {
-  return !s.paused && s.moderation === "live" && checklist(s).every((item) => item.ok);
+  return !s.paused && s.fieldsReady && s.moderation === "live" && checklist(s).every((item) => item.ok);
 }
 
 function randomCode(length: number): string {
   return Math.random().toString(36).slice(2, 2 + length).toUpperCase();
+}
+
+/** Takes the unit off a saved value, so "8 GB" shows as 8 beside the unit. */
+function stripUnit(saved: string, field: CategoryField): string {
+  const unit = field.unit?.trim();
+  if (field.field_type === "number" && unit && saved.toLowerCase().endsWith(unit.toLowerCase())) {
+    return saved.slice(0, saved.length - unit.length).trim();
+  }
+  return saved;
+}
+
+/** The product's specifications: the category's fields in the admin's order, then any other details. */
+function buildSpecs(
+  fields: CategoryField[],
+  values: Record<string, string>,
+  extra: string
+): Record<string, string> {
+  const specs: Record<string, string> = {};
+
+  for (const field of fields) {
+    const raw = (values[field.label] ?? "").trim();
+    if (!raw) continue;
+    specs[field.label] = field.field_type === "number" && field.unit ? `${raw} ${field.unit}` : raw;
+  }
+
+  const taken = new Set(fields.map((field) => field.label.toLowerCase()));
+  for (const [key, value] of Object.entries(parseSpecs(extra))) {
+    if (!taken.has(key.toLowerCase())) specs[key] = value;
+  }
+  return specs;
 }
 
 /** Saves a seller's product. It goes live by itself once every item is complete, unless Sumus has hidden it or the seller has paused it. */
@@ -138,7 +183,11 @@ export function SellerProductEditor({
   const [brandId, setBrandId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
-  const [specs, setSpecs] = useState("");
+  const [rawSpecs, setRawSpecs] = useState<Record<string, string>>({});
+  const [fields, setFields] = useState<CategoryField[]>([]);
+  const [fieldsFor, setFieldsFor] = useState<string | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [extra, setExtra] = useState("");
   const [warranty, setWarranty] = useState("");
   const [variants, setVariants] = useState<Variant[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -153,16 +202,45 @@ export function SellerProductEditor({
   const [newBrandName, setNewBrandName] = useState("");
   const [brandSaving, setBrandSaving] = useState(false);
 
+  const extraSeeded = useRef(false);
+
+  // Only subcategories can hold products, so main categories that have subcategories aren't offered.
+  const leafCategories = useMemo(() => {
+    const parents = new Set(categories.map((item) => item.parent_id).filter((value): value is string => value !== null));
+    const byId = new Map(categories.map((item) => [item.id, item]));
+    return categories
+      .filter((item) => !parents.has(item.id))
+      .map((item) => {
+        const parent = item.parent_id ? byId.get(item.parent_id) : undefined;
+        return { id: item.id, label: parent ? `${parent.name} › ${item.name}` : item.name };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [categories]);
+
+  const categoryOk = leafCategories.some((item) => item.id === categoryId);
+  const fieldsReady = fieldsFor === categoryId;
+
+  const fieldChecks = fieldsReady
+    ? fields
+        .filter((field) => field.is_required)
+        .map((field) => ({
+          label: `${field.label} (required detail)`,
+          ok: (values[field.label] ?? "").trim() !== "",
+        }))
+    : [];
+
   const snapshot: Snapshot = {
     name,
     brandId,
-    categoryId,
+    categoryOk,
     description,
     warranty,
     photoCount: photos.length,
     variants,
     moderation,
     paused,
+    fieldsReady,
+    fieldChecks,
   };
   const checks = checklist(snapshot);
 
@@ -180,6 +258,58 @@ export function SellerProductEditor({
       active = false;
     };
   }, []);
+
+  // Loads the detail fields the admin set for the chosen subcategory.
+  useEffect(() => {
+    if (!categoryId) {
+      setFields([]);
+      setFieldsFor("");
+      return;
+    }
+
+    let active = true;
+    supabase
+      .from("category_fields")
+      .select("id, label, field_type, unit, options, is_required, sort_order")
+      .eq("category_id", categoryId)
+      .order("sort_order", { ascending: true })
+      .then(({ data, error }) => {
+        if (!active) return;
+        setFields(error ? [] : ((data ?? []) as CategoryField[]));
+        setFieldsFor(categoryId);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [categoryId]);
+
+  // Fills each field from the product's saved details the first time it is shown.
+  useEffect(() => {
+    if (loading || fieldsFor !== categoryId) return;
+
+    setValues((current) => {
+      const next = { ...current };
+      for (const field of fields) {
+        if (next[field.label] === undefined) {
+          const saved = rawSpecs[field.label];
+          next[field.label] = saved === undefined ? "" : stripUnit(saved, field);
+        }
+      }
+      return next;
+    });
+
+    // Details that don't belong to a field go in the "Other details" box, once.
+    if (!extraSeeded.current) {
+      extraSeeded.current = true;
+      const labels = new Set(fields.map((field) => field.label));
+      const rest: Record<string, string> = {};
+      for (const [key, value] of Object.entries(rawSpecs)) {
+        if (!labels.has(key)) rest[key] = value;
+      }
+      setExtra(specsToText(rest));
+    }
+  }, [loading, fieldsFor, categoryId, fields, rawSpecs]);
 
   useEffect(() => {
     if (!id) {
@@ -206,7 +336,9 @@ export function SellerProductEditor({
         setBrandId(row.brand_id ?? "");
         setCategoryId(row.category_id ?? "");
         setDescription(row.description ?? "");
-        setSpecs(specsToText(row.specifications ?? {}));
+        setRawSpecs(
+          Object.fromEntries(Object.entries(row.specifications ?? {}).map(([key, value]) => [key, String(value)]))
+        );
         setWarranty(row.warranty_period ?? "");
         setModeration(row.moderation);
         setPaused(row.seller_paused);
@@ -354,12 +486,19 @@ export function SellerProductEditor({
 
     setBusy(true);
     try {
+      for (const field of fields) {
+        const raw = (values[field.label] ?? "").trim();
+        if (raw && field.field_type === "number" && !/^\d+(\.\d+)?$/.test(raw)) {
+          throw new Error(`${field.label} must be a number, such as 8.`);
+        }
+      }
+
       const details = {
         name: name.trim(),
         brand_id: brandId || null,
         category_id: categoryId || null,
         description: description.trim() || null,
-        specifications: parseSpecs(specs),
+        specifications: buildSpecs(fieldsReady ? fields : [], values, extra),
         warranty_period: warranty.trim() || null,
       };
 
@@ -375,7 +514,11 @@ export function SellerProductEditor({
           })
           .select("id")
           .single();
-        if (error || !data) throw new Error("This product couldn't be created. Try a different name.");
+        if (error || !data) {
+          throw new Error(
+            error?.message ? `This product couldn't be created. ${error.message}` : "This product couldn't be created. Try a different name."
+          );
+        }
         productRef = data.id as string;
         setId(productRef);
       } else {
@@ -386,7 +529,7 @@ export function SellerProductEditor({
           .eq("id", productRef);
         if (hideError) throw new Error("The product couldn't be updated. Try again.");
         const { error } = await supabase.from("products").update(details).eq("id", productRef);
-        if (error) throw new Error("The details couldn't be saved. Check the name and try again.");
+        if (error) throw new Error(`The details couldn't be saved. ${error.message}`);
       }
 
       for (const v of variants) {
@@ -557,6 +700,8 @@ export function SellerProductEditor({
           ? "Live on Sumus."
           : "Not live yet. It goes live once the checklist is complete.";
 
+  const inMainCategory = categoryId !== "" && categories.length > 0 && !categoryOk;
+
   return (
     <div className="space-y-6 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5">
       <div className="flex items-center justify-between gap-3">
@@ -597,16 +742,28 @@ export function SellerProductEditor({
           </select>
         </Mini>
 
-        <Mini label="Category">
-          <select className={INPUT} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
-            <option value="">Choose a category</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
+        <Mini label="Category (subcategory)">
+          <select
+            className={INPUT}
+            value={categoryOk ? categoryId : ""}
+            onChange={(event) => setCategoryId(event.target.value)}
+          >
+            <option value="">Choose a subcategory</option>
+            {leafCategories.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
               </option>
             ))}
           </select>
         </Mini>
+
+        {inMainCategory && (
+          <div className="md:col-span-2">
+            <Notice tone="error">
+              This product is in a main category. Choose one of its subcategories, then save.
+            </Notice>
+          </div>
+        )}
 
         <div className="md:col-span-2">
           {!addingBrand ? (
@@ -656,17 +813,80 @@ export function SellerProductEditor({
             />
           </Mini>
         </div>
-        <div className="md:col-span-2">
-          <Mini label="Specifications, one per line as Name: Value">
+
+        <div className="space-y-4 md:col-span-2">
+          <p className="text-sm font-bold text-ink">Product details</p>
+
+          {!categoryOk && (
+            <p className="text-sm text-slate-600">
+              Choose a subcategory to see the details buyers expect for it.
+            </p>
+          )}
+
+          {categoryOk && fieldsReady && fields.length === 0 && (
+            <p className="text-sm text-slate-600">
+              This subcategory has no required details. Use the box below for anything else buyers should know.
+            </p>
+          )}
+
+          {categoryOk && !fieldsReady && <p className="text-sm text-slate-600">Loading the details for this subcategory…</p>}
+
+          {categoryOk && fieldsReady && fields.length > 0 && (
+            <div className="grid gap-4 md:grid-cols-2">
+              {fields.map((field) => {
+                const value = values[field.label] ?? "";
+                const label = `${field.label}${field.is_required ? " *" : ""}`;
+
+                if (field.field_type === "choice") {
+                  const choices = value && !field.options.includes(value) ? [value, ...field.options] : field.options;
+                  return (
+                    <Mini key={field.id} label={label}>
+                      <select
+                        className={INPUT}
+                        value={value}
+                        onChange={(event) => setValues((current) => ({ ...current, [field.label]: event.target.value }))}
+                      >
+                        <option value="">Choose</option>
+                        {choices.map((choice) => (
+                          <option key={choice} value={choice}>
+                            {choice}
+                          </option>
+                        ))}
+                      </select>
+                    </Mini>
+                  );
+                }
+
+                return (
+                  <Mini key={field.id} label={label}>
+                    <div className="flex items-center gap-2">
+                      <input
+                        className={INPUT}
+                        inputMode={field.field_type === "number" ? "decimal" : undefined}
+                        value={value}
+                        onChange={(event) => setValues((current) => ({ ...current, [field.label]: event.target.value }))}
+                      />
+                      {field.field_type === "number" && field.unit && (
+                        <span className="mt-1 shrink-0 text-sm text-slate-600">{field.unit}</span>
+                      )}
+                    </div>
+                  </Mini>
+                );
+              })}
+            </div>
+          )}
+
+          <Mini label="Other details, one per line as Name: Value (optional)">
             <textarea
-              rows={4}
+              rows={3}
               className={INPUT}
-              placeholder={"Battery: 5000mAh\nDisplay: 6.6 inch"}
-              value={specs}
-              onChange={(event) => setSpecs(event.target.value)}
+              placeholder={"Water resistance: IP68"}
+              value={extra}
+              onChange={(event) => setExtra(event.target.value)}
             />
           </Mini>
         </div>
+
         <div className="md:col-span-2">
           <Mini label="Warranty period">
             <input
