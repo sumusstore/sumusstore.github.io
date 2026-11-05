@@ -19,18 +19,40 @@ type VariantRow = {
     slug: string;
     created_at: string;
     category_id: string | null;
+    specifications: Record<string, unknown> | null;
     brands: { name: string } | null;
     product_images: { image_url: string; position: number }[];
     sellers: { slug: string; display_name: string } | null;
   } | null;
 };
 
-// Every active variant with its product, brand, photos and seller, in one request.
+type CategoryRow = { id: string; name: string; parent_id: string | null };
+
+// Every active variant with its product, brand, photos, seller and saved details, in one request.
 const CATALOGUE_SELECT =
-  "id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, products!inner(id, name, slug, created_at, category_id, brands(name), product_images(image_url, position), sellers(slug, display_name))";
+  "id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, products!inner(id, name, slug, created_at, category_id, specifications, brands(name), product_images(image_url, position), sellers(slug, display_name))";
+
+/** The words a shopper can search by: the category and its parent, plus the values filled in for the product. */
+function buildSearchText(
+  categoryId: string | null,
+  categories: Map<string, CategoryRow>,
+  specifications: Record<string, unknown> | null
+): string {
+  const words: string[] = [];
+
+  const own = categoryId ? categories.get(categoryId) : undefined;
+  if (own) {
+    words.push(own.name);
+    const parent = own.parent_id ? categories.get(own.parent_id) : undefined;
+    if (parent) words.push(parent.name);
+  }
+
+  for (const value of Object.values(specifications ?? {})) words.push(String(value));
+  return words.join(" ");
+}
 
 /** Groups variant rows under their product, so each product appears once with all its variants. */
-function groupByProduct(rows: VariantRow[]): CatalogueProduct[] {
+function groupByProduct(rows: VariantRow[], categories: Map<string, CategoryRow>): CatalogueProduct[] {
   const byId = new Map<string, CatalogueProduct>();
 
   for (const row of rows) {
@@ -50,6 +72,7 @@ function groupByProduct(rows: VariantRow[]): CatalogueProduct[] {
         createdAt: product.created_at,
         sellerSlug: product.sellers?.slug ?? null,
         sellerName: product.sellers?.display_name ?? null,
+        searchText: buildSearchText(product.category_id, categories, product.specifications),
         variants: [],
       };
       byId.set(product.id, entry);
@@ -80,19 +103,27 @@ export function useCatalogue() {
 
     async function load() {
       try {
-        const { data, error } = await supabase
-          .from("product_variants")
-          .select(CATALOGUE_SELECT)
-          .eq("products.is_active", true)
-          .limit(1000);
+        const [variantResult, categoryResult] = await Promise.all([
+          supabase
+            .from("product_variants")
+            .select(CATALOGUE_SELECT)
+            .eq("products.is_active", true)
+            .limit(1000),
+          supabase.from("categories").select("id, name, parent_id"),
+        ]);
 
         if (!active) return;
-        if (error || !data) {
+        if (variantResult.error || !variantResult.data) {
           setStatus("error");
           return;
         }
 
-        setProducts(groupByProduct(data as unknown as VariantRow[]));
+        // If the category names don't load, search still works on the product details.
+        const categories = new Map<string, CategoryRow>(
+          ((categoryResult.data ?? []) as CategoryRow[]).map((row) => [row.id, row])
+        );
+
+        setProducts(groupByProduct(variantResult.data as unknown as VariantRow[], categories));
         setStatus("ready");
       } catch {
         if (active) setStatus("error");
