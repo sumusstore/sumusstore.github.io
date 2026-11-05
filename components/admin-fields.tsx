@@ -14,6 +14,7 @@ type Field = {
   unit: string | null;
   options: string[];
   is_required: boolean;
+  is_filter: boolean;
   sort_order: number;
 };
 
@@ -21,9 +22,16 @@ type Missing = { product_id: string; product_name: string; missing: string };
 
 type Message = { tone: "error" | "info"; text: string } | null;
 
-type Draft = { label: string; type: FieldType; unit: string; options: string; required: boolean };
+type Draft = {
+  label: string;
+  type: FieldType;
+  unit: string;
+  options: string;
+  required: boolean;
+  filter: boolean;
+};
 
-const EMPTY_DRAFT: Draft = { label: "", type: "text", unit: "", options: "", required: false };
+const EMPTY_DRAFT: Draft = { label: "", type: "text", unit: "", options: "", required: false, filter: false };
 
 const INPUT =
   "mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-700 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500";
@@ -79,6 +87,8 @@ function checkDraft(draft: Draft): { row: Record<string, unknown> } | { error: s
       unit: draft.type === "number" ? draft.unit.trim() || null : null,
       options,
       is_required: draft.required,
+      // Free text would give a long list of one-off values, so only number and choice fields can filter.
+      is_filter: draft.type !== "text" && draft.filter,
     },
   };
 }
@@ -100,6 +110,8 @@ function FieldForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel?: () => void;
 }) {
+  const canFilter = draft.type !== "text";
+
   return (
     <form onSubmit={onSubmit} className="space-y-3">
       <div className="grid gap-3 md:grid-cols-2">
@@ -120,7 +132,10 @@ function FieldForm({
             className={INPUT}
             value={draft.type}
             disabled={lockCore}
-            onChange={(event) => onChange({ type: event.target.value as FieldType })}
+            onChange={(event) => {
+              const type = event.target.value as FieldType;
+              onChange(type === "text" ? { type, filter: false } : { type });
+            }}
           >
             <option value="text">Text</option>
             <option value="number">Number with a unit</option>
@@ -163,6 +178,19 @@ function FieldForm({
           className="h-4 w-4 accent-blue-700"
         />
         Required. A product can&apos;t go live without it.
+      </label>
+
+      <label
+        className={`flex items-center gap-2 text-sm font-medium ${canFilter ? "text-ink" : "text-slate-400"}`}
+      >
+        <input
+          type="checkbox"
+          checked={canFilter && draft.filter}
+          disabled={!canFilter}
+          onChange={(event) => onChange({ filter: event.target.checked })}
+          className="h-4 w-4 accent-blue-700"
+        />
+        Show as a filter on the category page{canFilter ? "" : " (number and choice fields only)"}
       </label>
 
       <div className="flex flex-wrap gap-2">
@@ -217,7 +245,7 @@ export function AdminFields() {
     Promise.all([
       supabase
         .from("category_fields")
-        .select("id, label, field_type, unit, options, is_required, sort_order")
+        .select("id, label, field_type, unit, options, is_required, is_filter, sort_order")
         .eq("category_id", categoryId)
         .order("sort_order", { ascending: true }),
       supabase.rpc("category_field_usage", { p_category_id: categoryId }),
@@ -300,6 +328,7 @@ export function AdminFields() {
       unit: field.unit ?? "",
       options: field.options.join("\n"),
       required: field.is_required,
+      filter: field.is_filter,
     });
   }
 
@@ -383,7 +412,8 @@ export function AdminFields() {
           <h2 className="text-lg font-bold text-ink">Product detail fields</h2>
           <p className="mt-1 text-sm text-slate-600">
             Pick a subcategory, then set the details sellers must fill in for products in it, such as RAM or
-            screen type. The answers show in the Item description pop-up and can be searched by buyers.
+            screen type. The answers show in the Item description pop-up and can be searched by buyers. Number
+            and choice fields can also be switched on as filters.
           </p>
         </div>
 
@@ -424,7 +454,8 @@ export function AdminFields() {
                         {used > 0 && (
                           <p className="text-xs text-slate-500">
                             {used} {used === 1 ? "product uses" : "products use"} this field, so its name, type and
-                            unit are locked. You can still change whether it&apos;s required, and its options.
+                            unit are locked. You can still change whether it&apos;s required or a filter, and its
+                            options.
                           </p>
                         )}
                         <FieldForm
@@ -448,6 +479,11 @@ export function AdminFields() {
                             {field.is_required && (
                               <span className="ml-2 rounded-full bg-gold/20 px-2 py-0.5 text-xs font-semibold text-ink">
                                 Required
+                              </span>
+                            )}
+                            {field.is_filter && (
+                              <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                Filter
                               </span>
                             )}
                           </p>
