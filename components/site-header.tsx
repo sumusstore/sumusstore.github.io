@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useCategoryTree } from "@/hooks/use-category-tree";
+import { useConversations } from "@/hooks/use-conversations";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { SITE } from "@/lib/site-config";
 import { selectCartCount, useCartStore } from "@/stores/cart-store";
@@ -12,6 +13,7 @@ import {
   ChevronDownIcon,
   HeartIcon,
   MenuIcon,
+  MessageIcon,
   SearchIcon,
   UserIcon,
 } from "@/components/icons";
@@ -34,6 +36,7 @@ export function SiteHeader() {
 
   const cartCount = useCartStore(selectCartCount);
   const wishlistCount = useWishlistStore((state) => state.items.length);
+  const { unreadCount } = useConversations();
 
   // Counts show 0 until the browser has loaded saved data, so server and browser match.
   const shownCartCount = hydrated ? cartCount : 0;
@@ -142,6 +145,15 @@ export function SiteHeader() {
             >
               <UserIcon className="h-6 w-6" />
               <span className="hidden lg:block">Account</span>
+            </Link>
+            <Link
+              href="/messages/"
+              aria-label={`Messages, ${unreadCount} unread`}
+              className="relative flex flex-col items-center gap-0.5 p-1 text-xs text-ink hover:text-blue-700"
+            >
+              <MessageIcon className="h-6 w-6" />
+              <span className="hidden lg:block">Messages</span>
+              <CountBadge count={unreadCount} />
             </Link>
             <Link
               href="/wishlist/"
