@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AdminEnquiries } from "@/components/admin-enquiries";
+import { AdminFields } from "@/components/admin-fields";
 import { AdminOrders } from "@/components/admin-orders";
 import { AdminProducts } from "@/components/admin-products";
 import { AdminSellers } from "@/components/admin-sellers";
@@ -9,13 +10,14 @@ import { AdminSetup } from "@/components/admin-setup";
 import { markOrdersSeen, useAdminAlerts } from "@/hooks/use-admin-alerts";
 import { supabase } from "@/lib/supabase";
 
-type Tab = "orders" | "enquiries" | "sellers" | "products" | "setup";
+type Tab = "orders" | "enquiries" | "sellers" | "products" | "fields" | "setup";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "orders", label: "Orders" },
   { value: "enquiries", label: "Enquiries" },
   { value: "sellers", label: "Sellers" },
   { value: "products", label: "Products" },
+  { value: "fields", label: "Product fields" },
   { value: "setup", label: "Brands and categories" },
 ];
 
@@ -231,6 +233,7 @@ export function AdminView() {
         {tab === "enquiries" && <AdminEnquiries onChanged={refresh} />}
         {tab === "sellers" && <AdminSellers onChanged={() => setSellerTick((count) => count + 1)} />}
         {tab === "products" && <AdminProducts />}
+        {tab === "fields" && <AdminFields />}
         {tab === "setup" && <AdminSetup />}
       </div>
 
