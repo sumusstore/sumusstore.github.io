@@ -9,13 +9,18 @@ import {
   SORT_OPTIONS,
   buildCards,
   buildFacets,
+  buildSpecFacets,
   countActiveFilters,
   scopeProducts,
   type CatalogueFilters,
+  type FilterField,
   type SortOption,
 } from "@/lib/catalogue";
 
 const PAGE_SIZE = 12;
+
+// One shared empty list, so pages without detail filters don't recalculate on every render.
+const NO_FILTER_FIELDS: FilterField[] = [];
 
 type CatalogueViewProps = {
   title: string;
@@ -24,6 +29,8 @@ type CatalogueViewProps = {
   categoryIds?: string[] | null;
   /** Search text. Empty means no search. */
   query?: string;
+  /** Detail fields to offer as filters, set for a subcategory page. */
+  filterFields?: FilterField[];
   /** Shown above the title, such as breadcrumbs. */
   breadcrumb?: ReactNode;
   /** Shown below the subtitle, such as subcategory links. */
@@ -35,6 +42,7 @@ export function CatalogueView({
   subtitle,
   categoryIds = null,
   query = "",
+  filterFields = NO_FILTER_FIELDS,
   breadcrumb,
   children,
 }: CatalogueViewProps) {
@@ -49,6 +57,7 @@ export function CatalogueView({
     [products, categoryIds, query]
   );
   const facets = useMemo(() => buildFacets(scoped), [scoped]);
+  const specFacets = useMemo(() => buildSpecFacets(scoped, filterFields), [scoped, filterFields]);
   const cards = useMemo(() => buildCards(scoped, filters, sort), [scoped, filters, sort]);
   const shown = cards.slice(0, visible);
   const activeCount = countActiveFilters(filters);
@@ -96,7 +105,12 @@ export function CatalogueView({
           </div>
           <p className="mb-4 hidden text-base font-bold text-ink lg:block">Filters</p>
 
-          <FilterPanel facets={facets} filters={filters} onChange={changeFilters} />
+          <FilterPanel
+            facets={facets}
+            specFacets={specFacets}
+            filters={filters}
+            onChange={changeFilters}
+          />
 
           {activeCount > 0 && (
             <button
