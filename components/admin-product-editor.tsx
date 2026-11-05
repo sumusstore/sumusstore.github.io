@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Notice } from "@/components/form-field";
 import {
   isoToLocalInput,
@@ -39,11 +39,24 @@ type ProductRow = {
   slug: string;
   description: string | null;
   specifications: Record<string, unknown> | null;
+  warranty_period: string | null;
   is_active: boolean;
   brand_id: string | null;
   category_id: string | null;
   product_images: ImageRow[];
   product_variants: VariantRow[];
+};
+
+type FieldType = "text" | "number" | "choice";
+
+type CategoryField = {
+  id: string;
+  label: string;
+  field_type: FieldType;
+  unit: string | null;
+  options: string[];
+  is_required: boolean;
+  sort_order: number;
 };
 
 type SectionProps = {
@@ -53,7 +66,7 @@ type SectionProps = {
 };
 
 const DETAIL_SELECT =
-  "id, name, slug, description, specifications, is_active, brand_id, category_id, product_images(id, image_url, variant_id, position), product_variants(id, storage, colour, sku, price_kobo, compare_at_kobo, stock_qty, sale_ends_at, is_active)";
+  "id, name, slug, description, specifications, warranty_period, is_active, brand_id, category_id, product_images(id, image_url, variant_id, position), product_variants(id, storage, colour, sku, price_kobo, compare_at_kobo, stock_qty, sale_ends_at, is_active)";
 
 const INPUT =
   "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-600 focus:outline-none";
@@ -70,6 +83,36 @@ function Mini({ label, children }: { label: string; children: ReactNode }) {
       {children}
     </label>
   );
+}
+
+/** Takes the unit off a saved value, so "8 GB" shows as 8 beside the unit. */
+function stripUnit(saved: string, field: CategoryField): string {
+  const unit = field.unit?.trim();
+  if (field.field_type === "number" && unit && saved.toLowerCase().endsWith(unit.toLowerCase())) {
+    return saved.slice(0, saved.length - unit.length).trim();
+  }
+  return saved;
+}
+
+/** The product's specifications: the category's fields in the admin's order, then any other details. */
+function buildSpecs(
+  fields: CategoryField[],
+  values: Record<string, string>,
+  extra: string
+): Record<string, string> {
+  const specs: Record<string, string> = {};
+
+  for (const field of fields) {
+    const raw = (values[field.label] ?? "").trim();
+    if (!raw) continue;
+    specs[field.label] = field.field_type === "number" && field.unit ? `${raw} ${field.unit}` : raw;
+  }
+
+  const taken = new Set(fields.map((field) => field.label.toLowerCase()));
+  for (const [key, value] of Object.entries(parseSpecs(extra))) {
+    if (!taken.has(key.toLowerCase())) specs[key] = value;
+  }
+  return specs;
 }
 
 export function AdminProductEditor({
@@ -150,13 +193,93 @@ function DetailsForm({
   const [brandId, setBrandId] = useState(product.brand_id ?? "");
   const [categoryId, setCategoryId] = useState(product.category_id ?? "");
   const [description, setDescription] = useState(product.description ?? "");
-  const [specs, setSpecs] = useState(specsToText(product.specifications ?? {}));
+  const [warranty, setWarranty] = useState(product.warranty_period ?? "");
+  const [rawSpecs] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      Object.entries(product.specifications ?? {}).map(([key, value]) => [key, String(value)])
+    )
+  );
+  const [fields, setFields] = useState<CategoryField[]>([]);
+  const [fieldsFor, setFieldsFor] = useState<string | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [extra, setExtra] = useState("");
   const [busy, setBusy] = useState(false);
 
-  function categoryLabel(category: Category): string {
-    const parent = categories.find((item) => item.id === category.parent_id);
-    return parent ? `${parent.name} › ${category.name}` : category.name;
-  }
+  const extraSeeded = useRef(false);
+
+  // Only subcategories can hold products, so main categories that have subcategories aren't offered.
+  const parentIds = new Set(
+    categories.map((item) => item.parent_id).filter((value): value is string => value !== null)
+  );
+  const leafCategories = categories
+    .filter((item) => !parentIds.has(item.id))
+    .map((item) => {
+      const parent = categories.find((candidate) => candidate.id === item.parent_id);
+      return { id: item.id, label: parent ? `${parent.name} › ${item.name}` : item.name };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  const categoryOk = leafCategories.some((item) => item.id === categoryId);
+  const inMainCategory = categoryId !== "" && categories.length > 0 && !categoryOk;
+  const fieldsReady = fieldsFor === categoryId;
+
+  const missingRequired = fieldsReady
+    ? fields
+        .filter((field) => field.is_required && (values[field.label] ?? "").trim() === "")
+        .map((field) => field.label)
+    : [];
+
+  // Loads the detail fields the admin set for the chosen subcategory.
+  useEffect(() => {
+    if (!categoryId) {
+      setFields([]);
+      setFieldsFor("");
+      return;
+    }
+
+    let active = true;
+    supabase
+      .from("category_fields")
+      .select("id, label, field_type, unit, options, is_required, sort_order")
+      .eq("category_id", categoryId)
+      .order("sort_order", { ascending: true })
+      .then(({ data, error }) => {
+        if (!active) return;
+        setFields(error ? [] : ((data ?? []) as CategoryField[]));
+        setFieldsFor(categoryId);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [categoryId]);
+
+  // Fills each field from the product's saved details the first time it is shown.
+  useEffect(() => {
+    if (fieldsFor !== categoryId) return;
+
+    setValues((current) => {
+      const next = { ...current };
+      for (const field of fields) {
+        if (next[field.label] === undefined) {
+          const saved = rawSpecs[field.label];
+          next[field.label] = saved === undefined ? "" : stripUnit(saved, field);
+        }
+      }
+      return next;
+    });
+
+    // Details that don't belong to a field go in the "Other details" box, once.
+    if (!extraSeeded.current) {
+      extraSeeded.current = true;
+      const labels = new Set(fields.map((field) => field.label));
+      const rest: Record<string, string> = {};
+      for (const [key, value] of Object.entries(rawSpecs)) {
+        if (!labels.has(key)) rest[key] = value;
+      }
+      setExtra(specsToText(rest));
+    }
+  }, [fieldsFor, categoryId, fields, rawSpecs]);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -165,6 +288,14 @@ function DetailsForm({
     if (!cleanName || !cleanSlug) {
       onNotice({ tone: "error", text: "Enter a name and a web address." });
       return;
+    }
+
+    for (const field of fields) {
+      const raw = (values[field.label] ?? "").trim();
+      if (raw && field.field_type === "number" && !/^\d+(\.\d+)?$/.test(raw)) {
+        onNotice({ tone: "error", text: `${field.label} must be a number, such as 8.` });
+        return;
+      }
     }
 
     setBusy(true);
@@ -176,7 +307,8 @@ function DetailsForm({
         brand_id: brandId || null,
         category_id: categoryId || null,
         description: description.trim() || null,
-        specifications: parseSpecs(specs),
+        specifications: buildSpecs(fieldsReady ? fields : [], values, extra),
+        warranty_period: warranty.trim() || null,
       })
       .eq("id", product.id);
     setBusy(false);
@@ -187,7 +319,7 @@ function DetailsForm({
         text:
           error.code === "23505"
             ? "Another product already uses that web address. Change it and try again."
-            : "The details couldn't be saved.",
+            : `The details couldn't be saved. ${error.message}`,
       });
       return;
     }
@@ -223,16 +355,28 @@ function DetailsForm({
         </select>
       </Mini>
 
-      <Mini label="Category">
-        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={INPUT}>
+      <Mini label="Category (subcategory)">
+        <select
+          value={categoryOk ? categoryId : ""}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className={INPUT}
+        >
           <option value="">No category</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {categoryLabel(category)}
+          {leafCategories.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label}
             </option>
           ))}
         </select>
       </Mini>
+
+      {inMainCategory && (
+        <div className="md:col-span-2">
+          <Notice tone="error">
+            This product is in a main category. Choose one of its subcategories, then save.
+          </Notice>
+        </div>
+      )}
 
       <div className="md:col-span-2">
         <Mini label="Description">
@@ -245,17 +389,95 @@ function DetailsForm({
         </Mini>
       </div>
 
-      <div className="md:col-span-2">
-        <Mini label="Specifications">
+      <div className="space-y-4 md:col-span-2">
+        <p className="text-sm font-semibold text-slate-900">Product details</p>
+
+        {!categoryOk && (
+          <p className="text-sm text-slate-600">Choose a subcategory to see the details set for it.</p>
+        )}
+
+        {categoryOk && !fieldsReady && (
+          <p className="text-sm text-slate-600">Loading the details for this subcategory…</p>
+        )}
+
+        {categoryOk && fieldsReady && fields.length === 0 && (
+          <p className="text-sm text-slate-600">
+            This subcategory has no detail fields. Use the box below for anything else.
+          </p>
+        )}
+
+        {categoryOk && fieldsReady && fields.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-2">
+            {fields.map((field) => {
+              const value = values[field.label] ?? "";
+              const label = `${field.label}${field.is_required ? " *" : ""}`;
+
+              if (field.field_type === "choice") {
+                const choices =
+                  value && !field.options.includes(value) ? [value, ...field.options] : field.options;
+                return (
+                  <Mini key={field.id} label={label}>
+                    <select
+                      value={value}
+                      onChange={(e) => setValues((current) => ({ ...current, [field.label]: e.target.value }))}
+                      className={INPUT}
+                    >
+                      <option value="">Choose</option>
+                      {choices.map((choice) => (
+                        <option key={choice} value={choice}>
+                          {choice}
+                        </option>
+                      ))}
+                    </select>
+                  </Mini>
+                );
+              }
+
+              return (
+                <Mini key={field.id} label={label}>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={value}
+                      inputMode={field.field_type === "number" ? "decimal" : undefined}
+                      onChange={(e) => setValues((current) => ({ ...current, [field.label]: e.target.value }))}
+                      className={INPUT}
+                    />
+                    {field.field_type === "number" && field.unit && (
+                      <span className="mt-1 shrink-0 text-sm text-slate-600">{field.unit}</span>
+                    )}
+                  </div>
+                </Mini>
+              );
+            })}
+          </div>
+        )}
+
+        {missingRequired.length > 0 && (
+          <p className="text-xs text-amber-700">
+            Required before this product can be shown in the shop: {missingRequired.join(", ")}.
+          </p>
+        )}
+
+        <Mini label="Other details, one per line as Name: Value (optional)">
           <textarea
-            rows={5}
-            value={specs}
-            onChange={(e) => setSpecs(e.target.value)}
-            placeholder={"Battery: 5000mAh\nDisplay: 6.6 inch"}
+            rows={3}
+            value={extra}
+            onChange={(e) => setExtra(e.target.value)}
+            placeholder={"Water resistance: IP68"}
             className={INPUT}
           />
         </Mini>
-        <p className="mt-1 text-xs text-slate-500">One per line, written as Name: Value.</p>
+      </div>
+
+      <div className="md:col-span-2">
+        <Mini label="Warranty period">
+          <input
+            value={warranty}
+            onChange={(e) => setWarranty(e.target.value)}
+            placeholder="e.g. 12 months manufacturer warranty"
+            className={INPUT}
+          />
+        </Mini>
       </div>
 
       <div className="md:col-span-2">
