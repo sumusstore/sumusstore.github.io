@@ -73,6 +73,9 @@ function groupByProduct(rows: VariantRow[], categories: Map<string, CategoryRow>
         sellerSlug: product.sellers?.slug ?? null,
         sellerName: product.sellers?.display_name ?? null,
         searchText: buildSearchText(product.category_id, categories, product.specifications),
+        specs: Object.fromEntries(
+          Object.entries(product.specifications ?? {}).map(([key, value]) => [key, String(value)])
+        ),
         variants: [],
       };
       byId.set(product.id, entry);
