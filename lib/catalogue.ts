@@ -26,7 +26,23 @@ export type CatalogueProduct = {
   sellerName: string | null;
   /** Category names and the values filled in for the product, so shoppers can search by them. */
   searchText?: string;
+  /** The detail values filled in for the product, by field name, such as RAM: "8 GB". */
+  specs?: Record<string, string>;
   variants: VariantOption[];
+};
+
+/** A detail field the admin switched on as a filter for a subcategory. */
+export type FilterField = {
+  label: string;
+  fieldType: "text" | "number" | "choice";
+  unit: string | null;
+  options: string[];
+};
+
+/** A detail filter ready to show: the field and the values that products in view actually have. */
+export type SpecFacet = {
+  field: FilterField;
+  options: string[];
 };
 
 export type PriceBand = "any" | "under-50k" | "50k-150k" | "150k-500k" | "over-500k";
@@ -51,6 +67,8 @@ export type CatalogueFilters = {
   brands: string[];
   storages: string[];
   colours: string[];
+  /** Chosen values for each detail filter, by field name. */
+  specs: Record<string, string[]>;
   priceBand: PriceBand;
   inStockOnly: boolean;
 };
@@ -59,6 +77,7 @@ export const EMPTY_FILTERS: CatalogueFilters = {
   brands: [],
   storages: [],
   colours: [],
+  specs: {},
   priceBand: "any",
   inStockOnly: false,
 };
@@ -80,10 +99,12 @@ export type Facets = {
 };
 
 export function countActiveFilters(filters: CatalogueFilters): number {
+  const specCount = Object.values(filters.specs).reduce((total, list) => total + list.length, 0);
   return (
     filters.brands.length +
     filters.storages.length +
     filters.colours.length +
+    specCount +
     (filters.priceBand !== "any" ? 1 : 0) +
     (filters.inStockOnly ? 1 : 0)
   );
@@ -159,6 +180,37 @@ export function buildFacets(products: CatalogueProduct[]): Facets {
   };
 }
 
+/** The detail filters to show: only values that products in view have, in a sensible order. */
+export function buildSpecFacets(products: CatalogueProduct[], fields: FilterField[]): SpecFacet[] {
+  const facets: SpecFacet[] = [];
+
+  for (const field of fields) {
+    const found = new Set<string>();
+    for (const product of products) {
+      const value = product.specs?.[field.label];
+      if (value) found.add(value);
+    }
+
+    const options = [...found];
+    if (field.fieldType === "number") {
+      options.sort((a, b) => (parseFloat(a) || 0) - (parseFloat(b) || 0));
+    } else if (field.fieldType === "choice") {
+      // Keep the order the admin listed the options in. Anything unlisted goes last.
+      const rank = (value: string) => {
+        const index = field.options.indexOf(value);
+        return index === -1 ? field.options.length : index;
+      };
+      options.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    } else {
+      options.sort();
+    }
+
+    if (options.length > 0) facets.push({ field, options });
+  }
+
+  return facets;
+}
+
 function sortCards(cards: ProductCardData[], sort: SortOption): ProductCardData[] {
   const newestFirst = (a: ProductCardData, b: ProductCardData) =>
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -194,11 +246,19 @@ export function buildCards(
   sort: SortOption
 ): ProductCardData[] {
   const cards: ProductCardData[] = [];
+  const specChoices = Object.entries(filters.specs).filter(([, chosen]) => chosen.length > 0);
 
   for (const product of products) {
     if (filters.brands.length > 0 && (!product.brand || !filters.brands.includes(product.brand))) {
       continue;
     }
+
+    // A product must match every detail filter that has a value chosen.
+    const failsDetail = specChoices.some(([label, chosen]) => {
+      const value = product.specs?.[label];
+      return !value || !chosen.includes(value);
+    });
+    if (failsDetail) continue;
 
     const matching = product.variants.filter(
       (variant) =>
