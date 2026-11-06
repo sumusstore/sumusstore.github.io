@@ -26,6 +26,7 @@ export type DetailReview = {
   rating: number;
   comment: string | null;
   createdAt: string;
+  verified: boolean;
 };
 
 export type ProductDetail = {
@@ -41,6 +42,8 @@ export type ProductDetail = {
   /** Null for products Sumus sells itself. */
   sellerSlug: string | null;
   sellerName: string | null;
+  /** The seller's average rating from approved reviews. Null if they have none yet. */
+  sellerRating: { average: number; count: number } | null;
   warrantyPeriod: string | null;
   images: DetailImage[];
   variants: DetailVariant[];
@@ -68,13 +71,20 @@ type ProductRow = {
     stock_qty: number;
     is_active: boolean;
   }[];
-  reviews: { id: string; rating: number; comment: string | null; created_at: string }[];
+  reviews: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    status: string;
+    verified_purchase: boolean;
+  }[];
 };
 
 // One request loads the product with its brand, category, seller, photos, variants and reviews.
-// The database rules only return approved reviews to shoppers.
+// Signed-in customers can also read their own waiting review, so only approved ones are kept below.
 const PRODUCT_SELECT =
-  "id, name, slug, description, specifications, warranty_period, brands(name), categories(id, name, slug), sellers(slug, display_name), product_images(image_url, variant_id, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, is_active), reviews(id, rating, comment, created_at)";
+  "id, name, slug, description, specifications, warranty_period, brands(name), categories(id, name, slug), sellers(slug, display_name), product_images(image_url, variant_id, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, is_active), reviews(id, rating, comment, created_at, status, verified_purchase)";
 
 function toDetail(row: ProductRow): ProductDetail {
   return {
@@ -89,6 +99,7 @@ function toDetail(row: ProductRow): ProductDetail {
     categorySlug: row.categories?.slug ?? null,
     sellerSlug: row.sellers?.slug ?? null,
     sellerName: row.sellers?.display_name ?? null,
+    sellerRating: null,
     warrantyPeriod: row.warranty_period,
     images: row.product_images.map((image) => ({
       url: image.image_url,
@@ -108,11 +119,13 @@ function toDetail(row: ProductRow): ProductDetail {
         stock: variant.stock_qty,
       })),
     reviews: row.reviews
+      .filter((review) => review.status === "approved")
       .map((review) => ({
         id: review.id,
         rating: review.rating,
         comment: review.comment,
         createdAt: review.created_at,
+        verified: review.verified_purchase === true,
       }))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
   };
@@ -169,6 +182,16 @@ export function useProductDetail(slug: string) {
             .order("sort_order", { ascending: true });
           if (!active) return;
           detail.specifications = orderSpecs(detail.specifications, (fieldRows ?? []) as { label: string }[]);
+        }
+
+        // A failed rating lookup only means no rating is shown.
+        if (detail && detail.sellerSlug) {
+          const { data: ratingRows } = await supabase.rpc("seller_rating", { p_slug: detail.sellerSlug });
+          if (!active) return;
+          const row = ((ratingRows ?? []) as { average: number | string | null; review_count: number }[])[0];
+          if (row && row.review_count > 0 && row.average !== null) {
+            detail.sellerRating = { average: Number(row.average), count: row.review_count };
+          }
         }
 
         setProduct(detail);
