@@ -13,6 +13,7 @@ type CompareRow = {
   id: string;
   name: string;
   slug: string;
+  category_id: string | null;
   specifications: Record<string, unknown> | null;
   brands: { name: string } | null;
   product_images: { image_url: string; position: number }[];
@@ -29,6 +30,7 @@ type Compared = {
   id: string;
   name: string;
   slug: string;
+  categoryId: string | null;
   brand: string | null;
   imageUrl: string | null;
   fromKobo: number | null;
@@ -51,6 +53,7 @@ function toCompared(row: CompareRow): Compared {
     id: row.id,
     name: row.name,
     slug: row.slug,
+    categoryId: row.category_id,
     brand: row.brands?.name ?? null,
     imageUrl: firstImage?.image_url ?? null,
     fromKobo: prices.length > 0 ? Math.min(...prices) : null,
@@ -88,12 +91,14 @@ export function CompareView() {
   const idKey = ids.join(",");
 
   const [items, setItems] = useState<Compared[]>([]);
+  const [fieldOrder, setFieldOrder] = useState<string[]>([]);
   const [status, setStatus] = useState<LoadStatus>("loading");
 
   useEffect(() => {
     if (!hydrated) return;
     if (!idKey) {
       setItems([]);
+      setFieldOrder([]);
       setStatus("ready");
       return;
     }
@@ -101,32 +106,58 @@ export function CompareView() {
     let active = true;
     setStatus("loading");
 
-    supabase
-      .from("products")
-      .select(
-        "id, name, slug, specifications, brands(name), product_images(image_url, position), product_variants(storage, colour, price_kobo, stock_qty, is_active)"
-      )
-      .in("id", idKey.split(","))
-      .eq("is_active", true)
-      .then(({ data, error }) => {
+    async function load() {
+      const { data, error } = await supabase
+        .from("products")
+        .select(
+          "id, name, slug, category_id, specifications, brands(name), product_images(image_url, position), product_variants(storage, colour, price_kobo, stock_qty, is_active)"
+        )
+        .in("id", idKey.split(","))
+        .eq("is_active", true);
+
+      if (!active) return;
+      if (error) {
+        setStatus("error");
+        return;
+      }
+
+      const byId = new Map(
+        ((data ?? []) as unknown as CompareRow[]).map((row) => [row.id, toCompared(row)])
+      );
+      // Keep products in the order the shopper added them.
+      const ordered = idKey
+        .split(",")
+        .map((id) => byId.get(id))
+        .filter((item): item is Compared => Boolean(item));
+
+      // List the details in the order the admin set each category's fields.
+      // If this lookup fails, the details simply stay in their saved order.
+      const categoryIds = [
+        ...new Set(ordered.map((item) => item.categoryId).filter((id): id is string => id !== null)),
+      ];
+      const order: string[] = [];
+      if (categoryIds.length > 0) {
+        const { data: fieldRows } = await supabase
+          .from("category_fields")
+          .select("category_id, label, sort_order")
+          .in("category_id", categoryIds)
+          .order("sort_order", { ascending: true });
         if (!active) return;
-        if (error) {
-          setStatus("error");
-          return;
+
+        const rows = (fieldRows ?? []) as { category_id: string; label: string }[];
+        for (const categoryId of categoryIds) {
+          for (const row of rows) {
+            if (row.category_id === categoryId && !order.includes(row.label)) order.push(row.label);
+          }
         }
+      }
 
-        const byId = new Map(
-          ((data ?? []) as unknown as CompareRow[]).map((row) => [row.id, toCompared(row)])
-        );
-        // Keep products in the order the shopper added them.
-        const ordered = idKey
-          .split(",")
-          .map((id) => byId.get(id))
-          .filter((item): item is Compared => Boolean(item));
+      setItems(ordered);
+      setFieldOrder(order);
+      setStatus("ready");
+    }
 
-        setItems(ordered);
-        setStatus("ready");
-      });
+    void load();
 
     return () => {
       active = false;
@@ -162,7 +193,12 @@ export function CompareView() {
     );
   }
 
-  const specKeys = Array.from(new Set(items.flatMap((item) => Object.keys(item.specs))));
+  // Fields first, in the admin's order, then any other details.
+  const present = new Set(items.flatMap((item) => Object.keys(item.specs)));
+  const specKeys = [
+    ...fieldOrder.filter((label) => present.has(label)),
+    ...[...present].filter((label) => !fieldOrder.includes(label)),
+  ];
 
   return (
     <div className="space-y-6">
