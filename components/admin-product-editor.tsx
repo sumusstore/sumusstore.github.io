@@ -40,6 +40,7 @@ type ProductRow = {
   description: string | null;
   specifications: Record<string, unknown> | null;
   warranty_period: string | null;
+  accepts_offers: boolean;
   is_active: boolean;
   brand_id: string | null;
   category_id: string | null;
@@ -66,7 +67,7 @@ type SectionProps = {
 };
 
 const DETAIL_SELECT =
-  "id, name, slug, description, specifications, warranty_period, is_active, brand_id, category_id, product_images(id, image_url, variant_id, position), product_variants(id, storage, colour, sku, price_kobo, compare_at_kobo, stock_qty, sale_ends_at, is_active)";
+  "id, name, slug, description, specifications, warranty_period, accepts_offers, is_active, brand_id, category_id, product_images(id, image_url, variant_id, position), product_variants(id, storage, colour, sku, price_kobo, compare_at_kobo, stock_qty, sale_ends_at, is_active)";
 
 const INPUT =
   "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-600 focus:outline-none";
@@ -194,6 +195,7 @@ function DetailsForm({
   const [categoryId, setCategoryId] = useState(product.category_id ?? "");
   const [description, setDescription] = useState(product.description ?? "");
   const [warranty, setWarranty] = useState(product.warranty_period ?? "");
+  const [acceptsOffers, setAcceptsOffers] = useState(product.accepts_offers ?? false);
   const [rawSpecs] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       Object.entries(product.specifications ?? {}).map(([key, value]) => [key, String(value)])
@@ -309,6 +311,7 @@ function DetailsForm({
         description: description.trim() || null,
         specifications: buildSpecs(fieldsReady ? fields : [], values, extra),
         warranty_period: warranty.trim() || null,
+        accepts_offers: acceptsOffers,
       })
       .eq("id", product.id);
     setBusy(false);
@@ -480,6 +483,19 @@ function DetailsForm({
         </Mini>
       </div>
 
+      <div className="md:col-span-2 flex items-center gap-2 pt-2">
+        <input
+          type="checkbox"
+          id="accepts-offers-admin"
+          checked={acceptsOffers}
+          onChange={(e) => setAcceptsOffers(e.target.checked)}
+          className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+        />
+        <label htmlFor="accepts-offers-admin" className="text-sm font-medium text-slate-800">
+          Accept offers on this product (buyers can negotiate lower prices)
+        </label>
+      </div>
+
       <div className="md:col-span-2">
         <button type="submit" disabled={busy} className={BUTTON}>
           {busy ? "Saving…" : "Save details"}
@@ -495,7 +511,6 @@ function VariantsSection({ product, onChanged, onNotice }: SectionProps) {
   async function addVariant() {
     setAdding(true);
     const sku = `${product.slug.toUpperCase().slice(0, 14)}-${Date.now().toString(36).toUpperCase()}`;
-    // New variants start hidden with no price, so nothing goes on sale by accident.
     const { error } = await supabase.from("product_variants").insert({
       product_id: product.id,
       sku,
