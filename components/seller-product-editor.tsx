@@ -47,6 +47,7 @@ type Snapshot = {
   categoryOk: boolean;
   description: string;
   warranty: string;
+  acceptsOffers: boolean;
   photoCount: number;
   variants: Variant[];
   moderation: Moderation;
@@ -65,6 +66,7 @@ type LoadedProduct = {
   description: string | null;
   specifications: Record<string, unknown> | null;
   warranty_period: string | null;
+  accepts_offers: boolean;
   is_active: boolean;
   seller_paused: boolean;
   moderation: Moderation;
@@ -105,7 +107,7 @@ function describeError(err: unknown): string {
     if (typeof e.message === "string") parts.push(e.message);
     if (e.statusCode !== undefined) parts.push(`status ${String(e.statusCode)}`);
     if (typeof e.code === "string") parts.push(`code ${e.code}`);
-    if (parts.length > 0) return parts.join(" · ");
+    if (parts.length > 0) parts.join(" · ");
   }
   return String(err);
 }
@@ -189,6 +191,7 @@ export function SellerProductEditor({
   const [values, setValues] = useState<Record<string, string>>({});
   const [extra, setExtra] = useState("");
   const [warranty, setWarranty] = useState("");
+  const [acceptsOffers, setAcceptsOffers] = useState(false);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [moderation, setModeration] = useState<Moderation>("live");
@@ -235,6 +238,7 @@ export function SellerProductEditor({
     categoryOk,
     description,
     warranty,
+    acceptsOffers,
     photoCount: photos.length,
     variants,
     moderation,
@@ -320,7 +324,7 @@ export function SellerProductEditor({
     supabase
       .from("products")
       .select(
-        "id, name, brand_id, category_id, description, specifications, warranty_period, is_active, seller_paused, moderation, product_images(id, image_url, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, stock_qty, is_active)"
+        "id, name, brand_id, category_id, description, specifications, warranty_period, accepts_offers, is_active, seller_paused, moderation, product_images(id, image_url, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, stock_qty, is_active)"
       )
       .eq("id", id)
       .maybeSingle()
@@ -340,6 +344,7 @@ export function SellerProductEditor({
           Object.fromEntries(Object.entries(row.specifications ?? {}).map(([key, value]) => [key, String(value)]))
         );
         setWarranty(row.warranty_period ?? "");
+        setAcceptsOffers(row.accepts_offers ?? false);
         setModeration(row.moderation);
         setPaused(row.seller_paused);
         setLive(row.is_active);
@@ -403,7 +408,6 @@ export function SellerProductEditor({
       .select("id, name, slug")
       .single();
 
-    // The web address is already taken by a similar brand, so add a short code to it.
     if (result.error?.code === "23505") {
       result = await supabase
         .from("brands")
@@ -500,6 +504,7 @@ export function SellerProductEditor({
         description: description.trim() || null,
         specifications: buildSpecs(fieldsReady ? fields : [], values, extra),
         warranty_period: warranty.trim() || null,
+        accepts_offers: acceptsOffers,
       };
 
       let productRef = id;
@@ -522,7 +527,6 @@ export function SellerProductEditor({
         productRef = data.id as string;
         setId(productRef);
       } else {
-        // Hide while editing, then decide again at the end, so an unfinished edit never stays live.
         const { error: hideError } = await supabase
           .from("products")
           .update({ is_active: false })
@@ -896,6 +900,19 @@ export function SellerProductEditor({
               onChange={(event) => setWarranty(event.target.value)}
             />
           </Mini>
+        </div>
+
+        <div className="md:col-span-2 flex items-center gap-2 pt-2">
+          <input
+            type="checkbox"
+            id="accepts-offers-seller"
+            checked={acceptsOffers}
+            onChange={(e) => setAcceptsOffers(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-700"
+          />
+          <label htmlFor="accepts-offers-seller" className="text-sm font-medium text-ink">
+            Accept offers on this product (buyers can negotiate lower prices)
+          </label>
         </div>
       </section>
 
