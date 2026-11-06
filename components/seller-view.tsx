@@ -34,6 +34,8 @@ type ProductRow = {
   sellers: { slug: string; display_name: string } | null;
 };
 
+type Rating = { average: number; count: number };
+
 // The sellers!inner join keeps only products from approved sellers with this shop address.
 const PRODUCT_SELECT =
   "id, name, slug, created_at, brands(name), product_images(image_url, position), product_variants(id, storage, colour, price_kobo, compare_at_kobo, sale_ends_at, stock_qty, is_active), sellers!inner(slug, display_name)";
@@ -72,6 +74,7 @@ function joinedLabel(iso: string): string {
 export function SellerView({ slug }: { slug: string }) {
   const [seller, setSeller] = useState<SellerInfo | null>(null);
   const [products, setProducts] = useState<CatalogueProduct[]>([]);
+  const [rating, setRating] = useState<Rating | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
@@ -79,7 +82,7 @@ export function SellerView({ slug }: { slug: string }) {
 
     async function load() {
       try {
-        const [sellerResult, productResult] = await Promise.all([
+        const [sellerResult, productResult, ratingResult] = await Promise.all([
           supabase
             .from("public_sellers")
             .select("slug, display_name, kind, state, created_at")
@@ -91,6 +94,7 @@ export function SellerView({ slug }: { slug: string }) {
             .eq("is_active", true)
             .eq("sellers.slug", slug)
             .limit(200),
+          supabase.rpc("seller_rating", { p_slug: slug }),
         ]);
 
         if (!active) return;
@@ -101,6 +105,18 @@ export function SellerView({ slug }: { slug: string }) {
 
         setSeller((sellerResult.data ?? null) as SellerInfo | null);
         setProducts(((productResult.data ?? []) as unknown as ProductRow[]).map(toCatalogue));
+
+        // A failed rating lookup only means no rating is shown.
+        const ratingRow = ((ratingResult.data ?? []) as {
+          average: number | string | null;
+          review_count: number;
+        }[])[0];
+        setRating(
+          ratingRow && ratingRow.review_count > 0 && ratingRow.average !== null
+            ? { average: Number(ratingRow.average), count: ratingRow.review_count }
+            : null
+        );
+
         setStatus("ready");
       } catch {
         if (active) setStatus("error");
@@ -149,6 +165,13 @@ export function SellerView({ slug }: { slug: string }) {
           <h1 className="mt-2 text-3xl font-bold md:text-4xl">{seller.display_name}</h1>
           <p className="mt-2 text-blue-50">
             {seller.state} · Member since {joinedLabel(seller.created_at)}
+          </p>
+          <p className="mt-1 text-blue-50">
+            {rating
+              ? `★ ${rating.average.toFixed(1)} out of 5 · ${rating.count} ${
+                  rating.count === 1 ? "review" : "reviews"
+                }`
+              : "No reviews yet"}
           </p>
           <span aria-hidden="true" className="mt-4 block h-1 w-16 rounded bg-gold" />
         </div>
