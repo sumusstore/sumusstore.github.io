@@ -13,6 +13,7 @@ import {
   type Brand,
   type Category,
 } from "@/lib/admin-utils";
+import { OFFER_RULES } from "@/lib/store-policies";
 import { supabase } from "@/lib/supabase";
 
 type Photo = { id: string; image_url: string; position: number };
@@ -47,7 +48,6 @@ type Snapshot = {
   categoryOk: boolean;
   description: string;
   warranty: string;
-  acceptsOffers: boolean;
   photoCount: number;
   variants: Variant[];
   moderation: Moderation;
@@ -107,7 +107,7 @@ function describeError(err: unknown): string {
     if (typeof e.message === "string") parts.push(e.message);
     if (e.statusCode !== undefined) parts.push(`status ${String(e.statusCode)}`);
     if (typeof e.code === "string") parts.push(`code ${e.code}`);
-    if (parts.length > 0) parts.join(" · ");
+    if (parts.length > 0) return parts.join(" · ");
   }
   return String(err);
 }
@@ -238,7 +238,6 @@ export function SellerProductEditor({
     categoryOk,
     description,
     warranty,
-    acceptsOffers,
     photoCount: photos.length,
     variants,
     moderation,
@@ -344,7 +343,7 @@ export function SellerProductEditor({
           Object.fromEntries(Object.entries(row.specifications ?? {}).map(([key, value]) => [key, String(value)]))
         );
         setWarranty(row.warranty_period ?? "");
-        setAcceptsOffers(row.accepts_offers ?? false);
+        setAcceptsOffers(row.accepts_offers === true);
         setModeration(row.moderation);
         setPaused(row.seller_paused);
         setLive(row.is_active);
@@ -408,6 +407,7 @@ export function SellerProductEditor({
       .select("id, name, slug")
       .single();
 
+    // The web address is already taken by a similar brand, so add a short code to it.
     if (result.error?.code === "23505") {
       result = await supabase
         .from("brands")
@@ -527,6 +527,7 @@ export function SellerProductEditor({
         productRef = data.id as string;
         setId(productRef);
       } else {
+        // Hide while editing, then decide again at the end, so an unfinished edit never stays live.
         const { error: hideError } = await supabase
           .from("products")
           .update({ is_active: false })
@@ -902,16 +903,21 @@ export function SellerProductEditor({
           </Mini>
         </div>
 
-        <div className="md:col-span-2 flex items-center gap-2 pt-2">
-          <input
-            type="checkbox"
-            id="accepts-offers-seller"
-            checked={acceptsOffers}
-            onChange={(e) => setAcceptsOffers(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-700"
-          />
-          <label htmlFor="accepts-offers-seller" className="text-sm font-medium text-ink">
-            Accept offers on this product (buyers can negotiate lower prices)
+        <div className="md:col-span-2">
+          <label className="flex items-start gap-3 text-sm text-ink">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 shrink-0"
+              checked={acceptsOffers}
+              onChange={(event) => setAcceptsOffers(event.target.checked)}
+            />
+            <span>
+              <span className="font-medium">Accept offers on this product</span>
+              <span className="mt-0.5 block text-xs text-slate-500">
+                Buyers can offer a lower price. Each offer lasts {OFFER_RULES.offerHours} hours, and a buyer can
+                make up to {OFFER_RULES.maxOffersPerBuyer} offers per version. You can accept, counter or decline.
+              </span>
+            </span>
           </label>
         </div>
       </section>
