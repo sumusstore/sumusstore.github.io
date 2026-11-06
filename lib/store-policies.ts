@@ -11,3 +11,10 @@ export const POLICY_NUMBERS = {
 export const SUPPORT_HOURS = "Monday to Saturday, 9am to 6pm";
 
 export const POLICY_LAST_UPDATED = "29 October 2026";
+
+// Offers ("Make an offer"). Keep these in step with the offer_window() and max_buyer_offers()
+// functions in Supabase, which are what actually enforce them.
+export const OFFER_RULES = {
+  offerHours: 48,
+  maxOffersPerBuyer: 3,
+};
