@@ -111,7 +111,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const { product, status } = useProductDetail(slug);
-  const [catalogue, setCatalogue] = useState<ReturnType<typeof useCatalogue>["products"]>([]);
+  const [catalogue, setCatalogue] = useState<ReturnType<typeof useCatalogue>["products"]>([span_0](start_span)[span_0](end_span));
   const { products: catalogueProducts, status: catalogueStatus } = useCatalogue();
 
   const addItem = useCartStore((state) => state.addItem);
@@ -122,6 +122,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
   const [justAdded, setJustAdded] = useState(false);
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [modal, setModal] = useState<ModalName>(null);
+  const [startingOfferChat, setStartingOfferChat] = useState(false);
 
   useEffect(() => {
     setCatalogue(catalogueProducts);
@@ -297,11 +298,50 @@ export function ProductDetailView({ slug }: { slug: string }) {
         label: String(index + 1),
       }));
 
-  const variantText = variant && variant.label ? ` (${variant.label})` : "";
-  const offerLink = whatsappLink(
-    `Hello, I'd like to make an offer on ${product.name}${variantText}. Could we talk about the price?`
-  );
   const messageLink = whatsappLink(`Hello, I have a question about ${product.name}.`);
+
+  async function handleStartOffer() {
+    setStartingOfferChat(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push(`/login/?next=${encodeURIComponent(window.location.pathname)}`);
+        return;
+      }
+
+      // Find or create conversation for this product
+      const { data: existing, error: fetchErr } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("product_id", product.id)
+        .eq("buyer_id", user.id)
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
+
+      let convId = existing?.id;
+
+      if (!convId) {
+        const { data: newConv, error: createErr } = await supabase
+          .from("conversations")
+          .insert({
+            product_id: product.id,
+            buyer_id: user.id,
+            seller_id: product.sellerId ?? null,
+          })
+          .select("id")
+          .single();
+
+        if (createErr) throw createErr;
+        convId = newConv.id;
+      }
+
+      router.push(`/messages/?c=${convId}`);
+    } catch (err) {
+      console.error("Failed to start offer conversation", err);
+      setStartingOfferChat(false);
+    }
+  }
 
   function buildCartItem() {
     if (!variant) return null;
@@ -794,17 +834,16 @@ export function ProductDetailView({ slug }: { slug: string }) {
 
       <Modal title="Make an offer" open={modal === "offer"} onClose={closeModal}>
         <p className="text-sm leading-relaxed text-slate-700">
-          Tell us the price you&apos;d like to pay for {product.name}. We&apos;ll reply on WhatsApp to
-          confirm whether we can agree.
+          Negotiate a price for {product.name} directly with the seller in your secure messaging inbox.
         </p>
-        <a
-          href={offerLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-5 block rounded-full bg-green-600 px-6 py-3 text-center font-semibold text-white hover:bg-green-700"
+        <button
+          type="button"
+          disabled={startingOfferChat}
+          onClick={handleStartOffer}
+          className="mt-5 block w-full rounded-full bg-blue-700 px-6 py-3 text-center font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300"
         >
-          Send offer on WhatsApp
-        </a>
+          {startingOfferChat ? "Opening chat..." : "Open offer in messages"}
+        </button>
       </Modal>
     </div>
   );
