@@ -33,6 +33,7 @@ export type Conversation = {
   /** Whether the signed-in person is the buyer or the seller in this conversation. */
   role: "buyer" | "seller";
   otherName: string;
+  productId: string | null;
   productName: string;
   productSlug: string | null;
   lastMessageAt: string;
@@ -69,6 +70,7 @@ export function toConversation(
     id: row.id,
     role,
     otherName: role === "buyer" ? (row.sellers?.display_name ?? "Seller") : row.buyer_name,
+    productId: row.product_id,
     productName: row.product_name,
     productSlug: row.products?.slug ?? null,
     lastMessageAt: row.last_message_at,
