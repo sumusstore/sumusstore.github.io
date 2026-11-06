@@ -10,6 +10,7 @@ import { MessageSellerButton } from "@/components/message-seller-button";
 import { Modal } from "@/components/modal";
 import { ProductCard } from "@/components/product-card";
 import { ProductGallery } from "@/components/product-gallery";
+import { ReviewForm } from "@/components/review-form";
 import { VariantPicker, type PickerOption } from "@/components/variant-picker";
 import { useCatalogue } from "@/hooks/use-catalogue";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -230,6 +231,19 @@ export function ProductDetailView({ slug }: { slug: string }) {
   const sellerName = product.sellerName ?? SITE.name;
   const sellerHref = product.sellerSlug ? `/seller/${product.sellerSlug}/` : "/about/";
 
+  // Under the seller's name: a seller's own rating, or the product's reviews for Sumus stock.
+  const sellerLine = product.sellerSlug
+    ? product.sellerRating
+      ? `${product.sellerRating.average.toFixed(1)} out of 5 · ${product.sellerRating.count} seller ${
+          product.sellerRating.count === 1 ? "review" : "reviews"
+        }`
+      : "Seller on Sumus"
+    : reviewSummary
+      ? `${reviewSummary.average.toFixed(1)} out of 5 · ${reviewSummary.count} ${
+          reviewSummary.count === 1 ? "review" : "reviews"
+        }`
+      : "Genuine products · Sold by Sumus";
+
   function closeModal() {
     setModal(null);
   }
@@ -372,15 +386,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
             <Link href={sellerHref} className="block font-bold text-ink hover:text-blue-700 hover:underline">
               {sellerName}
             </Link>
-            <p className="text-sm text-slate-600">
-              {reviewSummary
-                ? `${reviewSummary.average.toFixed(1)} out of 5 · ${reviewSummary.count} ${
-                    reviewSummary.count === 1 ? "review" : "reviews"
-                  }`
-                : product.sellerSlug
-                  ? "Seller on Sumus"
-                  : "Genuine products · Sold by Sumus"}
-            </p>
+            <p className="text-sm text-slate-600">{sellerLine}</p>
           </div>
         </div>
         <MessageSellerButton
@@ -719,16 +725,18 @@ export function ProductDetailView({ slug }: { slug: string }) {
                       month: "short",
                       year: "numeric",
                     })}
+                    {review.verified && (
+                      <span className="ml-2 font-semibold text-green-700">Verified purchase</span>
+                    )}
                   </p>
                 </li>
               ))}
             </ul>
           )}
 
-          <p className="mt-6 text-sm text-slate-600">
-            Reviews appear after we check them. Writing a review needs an account, which comes with
-            the account pages.
-          </p>
+          <div className="mt-6">
+            <ReviewForm productId={product.id} />
+          </div>
         </section>
       </section>
 
