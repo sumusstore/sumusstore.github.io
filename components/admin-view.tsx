@@ -6,17 +6,27 @@ import { AdminEnquiries } from "@/components/admin-enquiries";
 import { AdminFields } from "@/components/admin-fields";
 import { AdminOrders } from "@/components/admin-orders";
 import { AdminProducts } from "@/components/admin-products";
+import { AdminReviews } from "@/components/admin-reviews";
 import { AdminSellers } from "@/components/admin-sellers";
 import { AdminSetup } from "@/components/admin-setup";
 import { markOrdersSeen, useAdminAlerts } from "@/hooks/use-admin-alerts";
 import { supabase } from "@/lib/supabase";
 
-type Tab = "orders" | "enquiries" | "messages" | "sellers" | "products" | "fields" | "setup";
+type Tab =
+  | "orders"
+  | "enquiries"
+  | "messages"
+  | "reviews"
+  | "sellers"
+  | "products"
+  | "fields"
+  | "setup";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "orders", label: "Orders" },
   { value: "enquiries", label: "Enquiries" },
   { value: "messages", label: "Messages" },
+  { value: "reviews", label: "Reviews" },
   { value: "sellers", label: "Sellers" },
   { value: "products", label: "Products" },
   { value: "fields", label: "Product fields" },
@@ -44,6 +54,8 @@ export function AdminView() {
   const [tab, setTab] = useState<Tab>("orders");
   const [pendingSellers, setPendingSellers] = useState(0);
   const [sellerTick, setSellerTick] = useState(0);
+  const [pendingReviews, setPendingReviews] = useState(0);
+  const [reviewTick, setReviewTick] = useState(0);
   const [paused, setPaused] = useState<PausedRow[]>([]);
   const [pauseTick, setPauseTick] = useState(0);
   const { counts, version, refresh, alerts, requestAlerts } = useAdminAlerts();
@@ -68,6 +80,21 @@ export function AdminView() {
       active = false;
     };
   }, [tab, sellerTick]);
+
+  // Counts reviews waiting for approval. Refreshes when the tab changes or a review is decided.
+  useEffect(() => {
+    let active = true;
+    supabase
+      .from("reviews")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending")
+      .then(({ count }) => {
+        if (active) setPendingReviews(count ?? 0);
+      });
+    return () => {
+      active = false;
+    };
+  }, [tab, reviewTick]);
 
   // Products that sellers have paused and Sumus hasn't acknowledged. Checked every minute.
   useEffect(() => {
@@ -223,6 +250,7 @@ export function AdminView() {
             {item.label}
             {item.value === "orders" && <CountBadge count={counts.orders} />}
             {item.value === "enquiries" && <CountBadge count={counts.enquiries} />}
+            {item.value === "reviews" && <CountBadge count={pendingReviews} />}
             {item.value === "sellers" && <CountBadge count={pendingSellers} />}
             {item.value === "products" && <CountBadge count={paused.length} />}
           </button>
@@ -234,6 +262,7 @@ export function AdminView() {
         {tab === "orders" && <AdminOrders key={version} />}
         {tab === "enquiries" && <AdminEnquiries onChanged={refresh} />}
         {tab === "messages" && <AdminConversations />}
+        {tab === "reviews" && <AdminReviews onChanged={() => setReviewTick((count) => count + 1)} />}
         {tab === "sellers" && <AdminSellers onChanged={() => setSellerTick((count) => count + 1)} />}
         {tab === "products" && <AdminProducts />}
         {tab === "fields" && <AdminFields />}
