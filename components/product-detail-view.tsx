@@ -6,11 +6,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Countdown } from "@/components/countdown";
 import { ChevronDownIcon, HeartIcon } from "@/components/icons";
+import { MakeOfferButton } from "@/components/make-offer-button";
 import { MessageSellerButton } from "@/components/message-seller-button";
 import { Modal } from "@/components/modal";
 import { ProductCard } from "@/components/product-card";
 import { ProductGallery } from "@/components/product-gallery";
-import { ReviewForm } from "@/components/review-form";
 import { VariantPicker, type PickerOption } from "@/components/variant-picker";
 import { useCatalogue } from "@/hooks/use-catalogue";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -30,7 +30,7 @@ type DeliveryZone = {
   max_days: number;
 };
 
-type ModalName = "condition" | "delivery" | "item" | "description" | "offer" | null;
+type ModalName = "condition" | "delivery" | "item" | "description" | null;
 
 // The most a shopper can pick in the quantity box at once.
 const MAX_QUANTITY = 10;
@@ -111,7 +111,7 @@ export function ProductDetailView({ slug }: { slug: string }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const { product, status } = useProductDetail(slug);
-  const [catalogue, setCatalogue] = useState<ReturnType<typeof useCatalogue>["products"]>([span_0](start_span)[span_0](end_span));
+  const [catalogue, setCatalogue] = useState<ReturnType<typeof useCatalogue>["products"]>([]);
   const { products: catalogueProducts, status: catalogueStatus } = useCatalogue();
 
   const addItem = useCartStore((state) => state.addItem);
@@ -122,7 +122,6 @@ export function ProductDetailView({ slug }: { slug: string }) {
   const [justAdded, setJustAdded] = useState(false);
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [modal, setModal] = useState<ModalName>(null);
-  const [startingOfferChat, setStartingOfferChat] = useState(false);
 
   useEffect(() => {
     setCatalogue(catalogueProducts);
@@ -232,19 +231,6 @@ export function ProductDetailView({ slug }: { slug: string }) {
   const sellerName = product.sellerName ?? SITE.name;
   const sellerHref = product.sellerSlug ? `/seller/${product.sellerSlug}/` : "/about/";
 
-  // Under the seller's name: a seller's own rating, or the product's reviews for Sumus stock.
-  const sellerLine = product.sellerSlug
-    ? product.sellerRating
-      ? `${product.sellerRating.average.toFixed(1)} out of 5 · ${product.sellerRating.count} seller ${
-          product.sellerRating.count === 1 ? "review" : "reviews"
-        }`
-      : "Seller on Sumus"
-    : reviewSummary
-      ? `${reviewSummary.average.toFixed(1)} out of 5 · ${reviewSummary.count} ${
-          reviewSummary.count === 1 ? "review" : "reviews"
-        }`
-      : "Genuine products · Sold by Sumus";
-
   function closeModal() {
     setModal(null);
   }
@@ -299,49 +285,6 @@ export function ProductDetailView({ slug }: { slug: string }) {
       }));
 
   const messageLink = whatsappLink(`Hello, I have a question about ${product.name}.`);
-
-  async function handleStartOffer() {
-    setStartingOfferChat(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push(`/login/?next=${encodeURIComponent(window.location.pathname)}`);
-        return;
-      }
-
-      // Find or create conversation for this product
-      const { data: existing, error: fetchErr } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("product_id", product.id)
-        .eq("buyer_id", user.id)
-        .maybeSingle();
-
-      if (fetchErr) throw fetchErr;
-
-      let convId = existing?.id;
-
-      if (!convId) {
-        const { data: newConv, error: createErr } = await supabase
-          .from("conversations")
-          .insert({
-            product_id: product.id,
-            buyer_id: user.id,
-            seller_id: product.sellerId ?? null,
-          })
-          .select("id")
-          .single();
-
-        if (createErr) throw createErr;
-        convId = newConv.id;
-      }
-
-      router.push(`/messages/?c=${convId}`);
-    } catch (err) {
-      console.error("Failed to start offer conversation", err);
-      setStartingOfferChat(false);
-    }
-  }
 
   function buildCartItem() {
     if (!variant) return null;
@@ -426,7 +369,15 @@ export function ProductDetailView({ slug }: { slug: string }) {
             <Link href={sellerHref} className="block font-bold text-ink hover:text-blue-700 hover:underline">
               {sellerName}
             </Link>
-            <p className="text-sm text-slate-600">{sellerLine}</p>
+            <p className="text-sm text-slate-600">
+              {reviewSummary
+                ? `${reviewSummary.average.toFixed(1)} out of 5 · ${reviewSummary.count} ${
+                    reviewSummary.count === 1 ? "review" : "reviews"
+                  }`
+                : product.sellerSlug
+                  ? "Seller on Sumus"
+                  : "Genuine products · Sold by Sumus"}
+            </p>
           </div>
         </div>
         <MessageSellerButton
@@ -517,13 +468,12 @@ export function ProductDetailView({ slug }: { slug: string }) {
         >
           {soldOut ? "Sold out" : justAdded ? "Added to cart" : "Add to cart"}
         </button>
-        <button
-          type="button"
-          onClick={() => setModal("offer")}
-          className="w-full rounded-full border border-blue-700 px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50"
-        >
-          Make offer
-        </button>
+        <MakeOfferButton
+          productId={product.id}
+          sellerSlug={product.sellerSlug}
+          variantId={variant?.id ?? null}
+          disabled={soldOut}
+        />
         <button
           type="button"
           onClick={handleWishlist}
@@ -765,18 +715,16 @@ export function ProductDetailView({ slug }: { slug: string }) {
                       month: "short",
                       year: "numeric",
                     })}
-                    {review.verified && (
-                      <span className="ml-2 font-semibold text-green-700">Verified purchase</span>
-                    )}
                   </p>
                 </li>
               ))}
             </ul>
           )}
 
-          <div className="mt-6">
-            <ReviewForm productId={product.id} />
-          </div>
+          <p className="mt-6 text-sm text-slate-600">
+            Reviews appear after we check them. Writing a review needs an account, which comes with
+            the account pages.
+          </p>
         </section>
       </section>
 
@@ -832,19 +780,6 @@ export function ProductDetailView({ slug }: { slug: string }) {
         </p>
       </Modal>
 
-      <Modal title="Make an offer" open={modal === "offer"} onClose={closeModal}>
-        <p className="text-sm leading-relaxed text-slate-700">
-          Negotiate a price for {product.name} directly with the seller in your secure messaging inbox.
-        </p>
-        <button
-          type="button"
-          disabled={startingOfferChat}
-          onClick={handleStartOffer}
-          className="mt-5 block w-full rounded-full bg-blue-700 px-6 py-3 text-center font-semibold text-white hover:bg-blue-800 disabled:bg-slate-300"
-        >
-          {startingOfferChat ? "Opening chat..." : "Open offer in messages"}
-        </button>
-      </Modal>
     </div>
   );
 }
