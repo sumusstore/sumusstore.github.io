@@ -15,6 +15,7 @@ import {
   type ConversationRow,
 } from "@/hooks/use-conversations";
 import { supabase } from "@/lib/supabase";
+import { formatNaira } from "@/lib/format";
 
 const MAX_LENGTH = 2000;
 const REFRESH_MS = 20000;
@@ -24,6 +25,36 @@ type MessageRow = {
   sender_id: string;
   body: string;
   created_at: string;
+};
+
+type OfferRow = {
+  id: string;
+  conversation_id: string;
+  variant_id: string;
+  buyer_id: string;
+  seller_id: string;
+  amount_kobo: number;
+  listed_price_kobo: number;
+  made_by: "buyer" | "seller";
+  parent_offer_id: string | null;
+  status: "pending" | "accepted" | "declined" | "countered" | "withdrawn" | "expired" | "used";
+  expires_at: string;
+  created_at: string;
+};
+
+type ProductVariantInfo = {
+  id: string;
+  storage: string | null;
+  colour: string | null;
+  price_kobo: number;
+  stock_qty: number;
+  is_active: boolean;
+  product_id: string;
+  product_name: string;
+  accepts_offers: boolean;
+  product_active: boolean;
+  moderation: string;
+  seller_paused: boolean | null;
 };
 
 function sameDay(a: Date, b: Date): boolean {
@@ -171,10 +202,21 @@ function ThreadView({ id }: { id: string }) {
   const userId = user?.id ?? null;
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [offers, setOffers] = useState<OfferRow[]>([]);
+  const [variants, setVariants] = useState<ProductVariantInfo[]>([]);
   const [status, setStatus] = useState<ThreadStatus>("loading");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Offer modal / action states
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState("");
+  const [offerAmountInput, setOfferAmountInput] = useState("");
+  const [offerActionBusy, setOfferActionBusy] = useState(false);
+  const [counterInputMap, setCounterInputMap] = useState<Record<string, string>>({});
+  const [activeCounterOfferId, setActiveCounterOfferId] = useState<string | null>(null);
+
   const endRef = useRef<HTMLDivElement | null>(null);
   const mounted = useRef(true);
 
@@ -211,21 +253,55 @@ function ThreadView({ id }: { id: string }) {
       return;
     }
 
-    const messageResult = await supabase
-      .from("messages")
-      .select("id, sender_id, body, created_at")
-      .eq("conversation_id", id)
-      .order("created_at", { ascending: true });
+    const [messageResult, offerResult, variantResult] = await Promise.all([
+      supabase
+        .from("messages")
+        .select("id, sender_id, body, created_at")
+        .eq("conversation_id", id)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("offers")
+        .select("*")
+        .eq("conversation_id", id)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("product_variants")
+        .select("id, storage, colour, price_kobo, stock_qty, is_active, products(id, name, accepts_offers, is_active, moderation, seller_paused)")
+        .eq("product_id", mine.productId),
+    ]);
 
     if (!mounted.current) return;
 
-    if (messageResult.error) {
+    if (messageResult.error || offerResult.error) {
       setStatus("error");
       return;
     }
 
     setConversation(mine);
     setMessages((messageResult.data ?? []) as MessageRow[]);
+    setOffers((offerResult.data ?? []) as OfferRow[]);
+
+    if (variantResult.data) {
+      const formattedVariants: ProductVariantInfo[] = variantResult.data.map((v: any) => ({
+        id: v.id,
+        storage: v.storage,
+        colour: v.colour,
+        price_kobo: v.price_kobo,
+        stock_qty: v.stock_qty,
+        is_active: v.is_active,
+        product_id: v.products.id,
+        product_name: v.products.name,
+        accepts_offers: v.products.accepts_offers,
+        product_active: v.products.is_active,
+        moderation: v.products.moderation,
+        seller_paused: v.products.seller_paused,
+      }));
+      setVariants(formattedVariants);
+      if (formattedVariants.length > 0 && !selectedVariantId) {
+        setSelectedVariantId(formattedVariants[0].id);
+      }
+    }
+
     setStatus("ready");
 
     if (mine.unread) {
@@ -234,12 +310,11 @@ function ThreadView({ id }: { id: string }) {
       });
       if (!readError) announceMessagesChanged();
     }
-  }, [id, userId]);
+  }, [id, userId, selectedVariantId]);
 
   useEffect(() => {
     void load();
 
-    // Checks for new messages now and then while the page is open.
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void load();
     }, REFRESH_MS);
@@ -249,7 +324,7 @@ function ThreadView({ id }: { id: string }) {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+  }, [messages.length, offers.length]);
 
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -278,14 +353,86 @@ function ThreadView({ id }: { id: string }) {
     announceMessagesChanged();
   }
 
+  async function handleMakeOffer(e: FormEvent) {
+    e.preventDefault();
+    const amountNaira = parseFloat(offerAmountInput);
+    if (isNaN(amountNaira) || amountNaira <= 0) {
+      setError("Please enter a valid offer amount.");
+      return;
+    }
+    const amountKobo = Math.round(amountNaira * 100);
+
+    setOfferActionBusy(true);
+    setError(null);
+    const { error: rpcError } = await supabase.rpc("make_offer", {
+      p_conversation_id: id,
+      p_variant_id: selectedVariantId,
+      p_amount_kobo: amountKobo,
+    });
+    setOfferActionBusy(false);
+
+    if (rpcError) {
+      setError(rpcError.message);
+      return;
+    }
+
+    setShowOfferModal(false);
+    setOfferAmountInput("");
+    await load();
+  }
+
+  async function handleRespond(offerId: string, action: "accept" | "decline" | "counter", counterAmountNaira?: string) {
+    let amountKobo = null;
+    if (action === "counter") {
+      const val = parseFloat(counterAmountNaira ?? "");
+      if (isNaN(val) || val <= 0) {
+        setError("Please enter a valid counter-offer amount.");
+        return;
+      }
+      amountKobo = Math.round(val * 100);
+    }
+
+    setOfferActionBusy(true);
+    setError(null);
+    const { error: rpcError } = await supabase.rpc("respond_to_offer", {
+      p_offer_id: offerId,
+      p_action: action,
+      p_amount_kobo: amountKobo,
+    });
+    setOfferActionBusy(false);
+
+    if (rpcError) {
+      setError(rpcError.message);
+      return;
+    }
+
+    setActiveCounterOfferId(null);
+    await load();
+  }
+
+  async function handleWithdraw(offerId: string) {
+    setOfferActionBusy(true);
+    setError(null);
+    const { error: rpcError } = await supabase.rpc("withdraw_offer", {
+      p_offer_id: offerId,
+    });
+    setOfferActionBusy(false);
+
+    if (rpcError) {
+      setError(rpcError.message);
+      return;
+    }
+    await load();
+  }
+
   if (status === "loading") {
     return <p className="mx-auto max-w-3xl px-4 py-12 text-sm text-slate-600">Loading this conversation…</p>;
   }
 
-  if (status === "error") {
+  if (status === "error" || status === "missing" || !conversation) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 text-sm text-slate-600">
-        <p>This conversation couldn&apos;t be loaded. Please refresh the page shortly.</p>
+        <p>This conversation isn&apos;t available or couldn&apos;t be loaded.</p>
         <Link href="/messages/" className="mt-3 inline-block font-semibold text-blue-700 hover:underline">
           Back to messages
         </Link>
@@ -293,22 +440,25 @@ function ThreadView({ id }: { id: string }) {
     );
   }
 
-  if (status === "missing" || !conversation) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-12 text-sm text-slate-600">
-        <p>This conversation isn&apos;t available.</p>
-        <Link href="/messages/" className="mt-3 inline-block font-semibold text-blue-700 hover:underline">
-          Back to messages
-        </Link>
-      </div>
-    );
-  }
+  const isBuyer = conversation.role === "buyer";
+  const canOffer = isBuyer && variants.some((v) => v.accepts_offers && v.product_active && v.is_active && v.moderation === "live" && !v.seller_paused && v.stock_qty > 0);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-4">
-      <Link href="/messages/" className="text-sm font-semibold text-blue-700 hover:underline">
-        ← Messages
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/messages/" className="text-sm font-semibold text-blue-700 hover:underline">
+          ← Messages
+        </Link>
+        {canOffer && (
+          <button
+            type="button"
+            onClick={() => setShowOfferModal(true)}
+            className="rounded-full bg-gold px-4 py-1.5 text-xs font-bold text-ink hover:bg-amber-500"
+          >
+            Make an Offer
+          </button>
+        )}
+      </div>
 
       <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white">
         <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
@@ -316,7 +466,7 @@ function ThreadView({ id }: { id: string }) {
           <div className="min-w-0 flex-1">
             <p className="truncate font-bold text-ink">{conversation.otherName}</p>
             <p className="text-xs text-slate-500">
-              {conversation.role === "buyer" ? "Seller on Sumus" : "Buyer"}
+              {isBuyer ? "Seller on Sumus" : "Buyer"}
             </p>
           </div>
         </div>
@@ -333,10 +483,163 @@ function ThreadView({ id }: { id: string }) {
           )}
         </div>
 
-        <div className="min-h-[40vh] bg-paper px-4 py-4">
-          {messages.length === 0 && (
-            <p className="text-center text-sm text-slate-600">No messages yet. Say hello below.</p>
+        {/* Modal for making an offer */}
+        {showOfferModal && (
+          <div className="border-b border-amber-200 bg-amber-50 p-4">
+            <h3 className="text-sm font-bold text-ink">Make an Offer</h3>
+            <form onSubmit={handleMakeOffer} className="mt-3 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700">Choose version</label>
+                <select
+                  value={selectedVariantId}
+                  onChange={(e) => setSelectedVariantId(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  {variants.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {[v.storage, v.colour].filter(Boolean.parse ? Boolean : Boolean).join(" - ")} ({formatNaira(v.price_kobo)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700">Your Offer Amount (₦)</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="e.g. 95000"
+                  value={offerAmountInput}
+                  onChange={(e) => setOfferAmountInput(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={offerActionBusy}
+                  className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800"
+                >
+                  {offerActionBusy ? "Submitting..." : "Submit Offer"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowOfferModal(false)}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <div className="min-h-[40vh] bg-paper px-4 py-4 space-y-4">
+          {messages.length === 0 && offers.length === 0 && (
+            <p className="text-center text-sm text-slate-600">No messages or offers yet. Say hello or make an offer below.</p>
           )}
+
+          {/* Render offers inline */}
+          {offers.map((offer) => {
+            const vInfo = variants.find((v) => v.id === offer.variant_id);
+            const isMineMade = offer.buyer_id === userId && offer.made_by === 'buyer' || (!isBuyer && offer.made_by === 'seller');
+            const canRespond = offer.status === 'pending' && !isMineMade;
+
+            return (
+              <div key={offer.id} className="my-3 rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="rounded bg-gold px-2 py-0.5 text-[10px] font-bold uppercase text-ink">
+                    Offer: {offer.status}
+                  </span>
+                  <span className="text-xs text-slate-500">{shortTime(offer.created_at)}</span>
+                </div>
+                <div className="mt-2 text-sm text-ink">
+                  <p className="font-semibold">
+                    {vInfo ? [vInfo.storage, vInfo.colour].filter(Boolean).join(" - ") : "Item Variant"}
+                  </p>
+                  <p className="mt-1">
+                    Offered Amount: <span className="font-bold text-blue-700">{formatNaira(offer.amount_kobo)}</span>{" "}
+                    <span className="text-xs text-slate-500">(Listed: {formatNaira(offer.listed_price_kobo)})</span>
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Proposed by {offer.made_by === 'buyer' ? 'Buyer' : 'Seller'} • Expires {new Date(offer.expires_at).toLocaleString("en-NG")}
+                  </p>
+                </div>
+
+                {/* Offer Action Buttons */}
+                {offer.status === 'pending' && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200">
+                    {canRespond && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={offerActionBusy}
+                          onClick={() => handleRespond(offer.id, 'accept')}
+                          className="rounded bg-green-700 px-3 py-1 text-xs font-bold text-white hover:bg-green-800"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          disabled={offerActionBusy}
+                          onClick={() => handleRespond(offer.id, 'decline')}
+                          className="rounded bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700"
+                        >
+                          Decline
+                        </button>
+                        <button
+                          type="button"
+                          disabled={offerActionBusy}
+                          onClick={() => setActiveCounterOfferId(activeCounterOfferId === offer.id ? null : offer.id)}
+                          className="rounded border border-slate-400 bg-white px-3 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                        >
+                          Counter
+                        </button>
+                      </>
+                    )}
+                    {isMineMade && (
+                      <button
+                        type="button"
+                        disabled={offerActionBusy}
+                        onClick={() => handleWithdraw(offer.id)}
+                        className="rounded border border-red-300 bg-white px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        Withdraw Offer
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Counter Input Form */}
+                {activeCounterOfferId === offer.id && (
+                  <div className="mt-3 flex items-center gap-2 pt-2 border-t border-amber-200">
+                    <input
+                      type="number"
+                      placeholder="Counter amount (₦)"
+                      value={counterInputMap[offer.id] ?? ""}
+                      onChange={(e) => setCounterInputMap({ ...counterInputMap, [offer.id]: e.target.value })}
+                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                    />
+                    <button
+                      type="button"
+                      disabled={offerActionBusy}
+                      onClick={() => handleRespond(offer.id, 'counter', counterInputMap[offer.id])}
+                      className="rounded bg-blue-700 px-3 py-1 text-xs font-bold text-white hover:bg-blue-800"
+                    >
+                      Send Counter
+                    </button>
+                  </div>
+                )}
+
+                {offer.status === 'accepted' && (
+                  <p className="mt-2 text-xs font-semibold text-green-700">
+                    ✓ Offer Accepted! You can proceed to checkout at this negotiated price.
+                  </p>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Regular Messages */}
           {messages.map((message, index) => {
             const mine = message.sender_id === userId;
             const previous = messages[index - 1];
