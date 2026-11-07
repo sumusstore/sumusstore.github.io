@@ -1,37 +1,50 @@
 # Marketplace Database Schema (`supabase`)
 
-This file contains the structural overview of the Supabase database schema, tables, RLS policies, views, functions, and scheduled cron jobs used across the Sumus marketplace project.
+This file is the structural overview of the Supabase database for the Sumus marketplace: tables, RLS policies, views, functions, triggers and scheduled jobs.
+
+Items marked **(verify)** are referenced by the application code but their exact definition was not checked in the database. Confirm them in the Supabase Table Editor or SQL Editor before relying on them.
 
 ---
 
 ## 1. Core User & Marketplace Tables
 
 ### `profiles`
-Stores profile details for buyers, sellers, and administrators.
+Profile details for buyers, sellers and administrators.
 - `id` (uuid, primary key, references `auth.users.id`)
 - `full_name` (text)
 - `phone` (text)
-- `role` (text) — `'customer'` | `'admin'`
+- `role` (text): `'customer'` | `'admin'`
 
 ### `sellers`
-Stores vendor registrations, business details, and approval statuses.
+Seller registrations, business details and approval status. Sumus's own stock is held on a seller row (`slug = 'sumus'`) owned by the admin account.
 - `id` (uuid, primary key)
 - `user_id` (uuid, unique, references `auth.users.id`)
+- `kind` (text): `'individual'` | `'business'`
 - `display_name` (text)
 - `slug` (text, unique)
-- `kind` (text) — `'individual'` | `'business'`
+- `business_name` (text, nullable)
+- `registration_number` (text, nullable)
+- `tax_id` (text, nullable)
+- `owner_full_name` (text)
 - `state` (text)
-- `status` (text) — `'pending'` | `'approved'` | `'suspended'` | `'rejected'`
-- `paystack_subaccount_code` (text, nullable)
+- `address` (text)
+- `status` (text): `'pending'` | `'approved'` | `'suspended'` | `'rejected'`
+- `admin_note` (text, nullable)
+- `reviewed_at` (timestamptz, nullable)
+- `terms_version` (text) **(verify)**
+- `terms_accepted_at` (timestamptz)
+- `paystack_subaccount_code` (text, nullable). Not yet populated; subaccount creation is pending.
 - `created_at` (timestamptz)
-- *Private Columns (restricted from public/visitor read):* `account_number`, `bank_name`, `owner_phone`, `address`, `registration_number`
+- **Private columns (never readable by visitors):** `account_number`, `bank_name`, `account_name`, `owner_phone`, `address`, `registration_number`, `tax_id`
+
+**Sumus seller row:** `slug = 'sumus'`, kind `individual`, status `approved`, owned by the admin account. Its state and address must be kept current because the state is shown on the public seller page.
 
 ### `seller_documents`
-Verification documents uploaded by vendors (accessed via 5-minute signed URLs).
+Verification documents uploaded by sellers. Opened by admins through 5-minute signed URLs.
 - `id` (uuid, primary key)
 - `seller_id` (uuid, references `sellers.id`)
-- `kind` (text) — `'owner_id'` | `'registration'` | `'genuine_proof'`
-- `storage_path` (text)
+- `doc_type` (text): `'registration'` | `'owner_id'` | `'genuine_proof'`
+- `file_path` (text)
 - `created_at` (timestamptz)
 
 ---
@@ -39,7 +52,7 @@ Verification documents uploaded by vendors (accessed via 5-minute signed URLs).
 ## 2. Catalog & Products Tables
 
 ### `categories`
-Hierarchical product categories.
+Hierarchical product categories. Only subcategories (rows with no children) can hold products.
 - `id` (uuid, primary key)
 - `name` (text)
 - `slug` (text, unique)
@@ -47,56 +60,57 @@ Hierarchical product categories.
 - `sort_order` (integer)
 
 ### `brands`
-Product brands.
+Product brands. Sellers can add brands; exact duplicates are blocked.
 - `id` (uuid, primary key)
 - `name` (text, unique)
 - `slug` (text, unique)
 
 ### `category_fields`
-Custom detail specification fields configured per subcategory by admins.
+Detail fields set per subcategory by admins. Sellers must fill in required fields.
 - `id` (uuid, primary key)
 - `category_id` (uuid, references `categories.id`)
-- `label` (text)
-- `field_type` (text) — `'text'` | `'number'` | `'choice'`
+- `label` (text), unique per category
+- `field_type` (text): `'text'` | `'number'` | `'choice'`
 - `unit` (text, nullable)
-- `options` (text array, nullable) — for choice fields
+- `options` (text array, nullable). Used by choice fields.
 - `is_required` (boolean)
-- `is_filter` (boolean)
+- `is_filter` (boolean). Only number and choice fields can be filters.
 - `sort_order` (integer)
 
 ### `products`
-Catalog products listed by Sumus or third-party sellers.
+Catalogue products. Every product has a seller: Sumus's own stock uses the Sumus seller row.
 - `id` (uuid, primary key)
 - `name` (text)
 - `slug` (text, unique)
 - `description` (text)
-- `specifications` (jsonb) — stores values keyed by `category_fields` label
+- `specifications` (jsonb). Values keyed by `category_fields` label.
 - `brand_id` (uuid, references `brands.id`)
 - `category_id` (uuid, references `categories.id`)
-- `seller_id` (uuid, nullable, references `sellers.id` — `null` for Sumus stock)
+- `seller_id` (uuid, references `sellers.id`). Set to Sumus by default.
 - `is_active` (boolean)
-- `moderation` (text) — `'live'` | `'hidden'`
+- `moderation` (text): `'live'` | `'hidden'`. Set by Sumus.
 - `warranty_period` (text)
 - `seller_paused` (boolean, default `false`)
 - `seller_paused_at` (timestamptz, nullable)
+- `pause_seen_by_admin` (boolean) **(verify default)**
 - `accepts_offers` (boolean, default `false`)
 - `created_at` (timestamptz)
 
 ### `product_variants`
-SKUs, storage/colour options, pricing, and stock.
+SKUs, storage and colour options, pricing and stock.
 - `id` (uuid, primary key)
 - `product_id` (uuid, references `products.id`)
 - `storage` (text, nullable)
 - `colour` (text, nullable)
 - `sku` (text, unique)
-- `price_kobo` (integer) — stored in kobo
+- `price_kobo` (integer)
 - `compare_at_kobo` (integer, nullable)
 - `stock_qty` (integer)
 - `sale_ends_at` (timestamptz, nullable)
 - `is_active` (boolean)
 
 ### `product_images`
-Product photo gallery references.
+Photo gallery references.
 - `id` (uuid, primary key)
 - `product_id` (uuid, references `products.id`)
 - `variant_id` (uuid, nullable, references `product_variants.id`)
@@ -108,12 +122,12 @@ Product photo gallery references.
 ## 3. Orders & Transactions Tables
 
 ### `orders`
-Header table for customer orders.
+Order header.
 - `id` (uuid, primary key)
-- `order_number` (text, unique) — format `SS-XXXXXXXX-XXXX`
-- `user_id` (uuid, nullable, references `auth.users.id`)
-- `status` (text) — `'pending_payment'` | `'awaiting_transfer'` | `'paid'` | `'processing'` | `'shipped'` | `'delivered'` | `'cancelled'` | `'refunded'`
-- `payment_method` (text) — `'paystack'` | `'bank_transfer'`
+- `order_number` (text, unique). Format `SS-XXXXXXXX-XXXX`.
+- `user_id` (uuid, nullable, references `auth.users.id`). Null for guest orders.
+- `status` (text): `'pending_payment'` | `'awaiting_transfer'` | `'paid'` | `'processing'` | `'shipped'` | `'delivered'` | `'cancelled'` | `'refunded'`
+- `payment_method` (text): `'paystack'` | `'bank_transfer'`
 - `email` (text)
 - `phone` (text)
 - `subtotal_kobo` (integer)
@@ -127,17 +141,17 @@ Header table for customer orders.
 - `created_at` (timestamptz)
 
 ### `order_items`
-Line items attached to an order.
+Line items.
 - `id` (uuid, primary key)
 - `order_id` (uuid, references `orders.id`)
 - `variant_id` (uuid, references `product_variants.id`)
 - `product_name` (text)
-- `variant_label` (text)
+- `variant_label` (text, nullable)
 - `quantity` (integer)
 - `unit_price_kobo` (integer)
 
 ### `payments`
-Payment gateway logs.
+Payment gateway log.
 - `id` (uuid, primary key)
 - `order_id` (uuid, references `orders.id`)
 - `reference` (text)
@@ -145,95 +159,220 @@ Payment gateway logs.
 - `currency` (text)
 - `payload` (jsonb)
 
-### `delivery_zones` & `stores`
-- `delivery_zones`: `id`, `name` ('Lagos', 'Outside Lagos', 'Store Pickup'), `fee_kobo`, `min_days`, `max_days`, `is_active`
-- `stores`: `id`, `name`, `address`, `state`, `phone`, `latitude`, `longitude`, `opening_hours`, `is_active`
+### `delivery_zones`
+- `id` (uuid, primary key)
+- `name` (text): `'Lagos'` | `'Outside Lagos'` | `'Store Pickup'`
+- `fee_kobo` (integer)
+- `min_days` (integer)
+- `max_days` (integer)
+- `is_active` (boolean)
+
+### `stores`
+Pickup branches.
+- `id` (uuid, primary key)
+- `name` (text)
+- `address` (text)
+- `state` (text)
+- `phone` (text, nullable)
+- `latitude` (numeric, nullable)
+- `longitude` (numeric, nullable)
+- `opening_hours` (text, nullable)
+- `is_active` (boolean)
 
 ---
 
-## 4. Messaging & Offer System Tables
+## 4. Messaging & Offer Tables
 
 ### `conversations`
-In-site buyer-seller messaging threads.
+Buyer-seller messaging threads.
 - `id` (uuid, primary key)
 - `buyer_id` (uuid, references `auth.users.id`)
-- `seller_id` (uuid, references `sellers.id`)
-- `product_id` (uuid, nullable, references `products.id` on delete set null)
+- `seller_id` (uuid, references `sellers.id`). Always set, including for Sumus products.
+- `product_id` (uuid, nullable, references `products.id`, on delete set null)
 - `product_name` (text)
-- `buyer_name` (text) — first name snapshot
+- `buyer_name` (text). First-name snapshot.
 - `last_message_at` (timestamptz)
 - `last_sender_id` (uuid, nullable)
 - `buyer_last_read_at` (timestamptz, nullable)
 - `seller_last_read_at` (timestamptz, nullable)
 - `hidden_by_admin` (boolean, default `false`)
 - `created_at` (timestamptz)
-- *Unique Constraint:* `(buyer_id, seller_id, product_id)`
+- **Unique:** `(buyer_id, seller_id, product_id)`
 
 ### `messages`
-Individual text messages inside a conversation thread.
 - `id` (uuid, primary key)
-- `conversation_id` (uuid, references `conversations.id` on delete cascade)
+- `conversation_id` (uuid, references `conversations.id`, on delete cascade)
 - `sender_id` (uuid, references `auth.users.id`)
-- `body` (text) — 1 to 2000 characters
+- `body` (text). 1 to 2000 characters.
 - `created_at` (timestamptz)
 
 ### `offers`
-Price negotiation records created within conversations.
+Price negotiation records inside conversations.
 - `id` (uuid, primary key)
-- `conversation_id` (uuid, references `conversations.id` on delete cascade)
-- `variant_id` (uuid, references `product_variants.id` on delete cascade)
-- `buyer_id` (uuid, references `auth.users.id` on delete cascade)
-- `seller_id` (uuid, references `sellers.id` on delete cascade)
+- `conversation_id` (uuid, references `conversations.id`, on delete cascade)
+- `variant_id` (uuid, references `product_variants.id`, on delete cascade)
+- `buyer_id` (uuid, references `auth.users.id`, on delete cascade)
+- `seller_id` (uuid, references `sellers.id`, on delete cascade)
 - `amount_kobo` (integer, check > 0)
 - `listed_price_kobo` (integer, check > 0)
-- `made_by` (text) — `'buyer'` | `'seller'`
-- `parent_offer_id` (uuid, nullable, references `offers.id` on delete set null)
-- `status` (text) — `'pending'` | `'accepted'` | `'declined'` | `'countered'` | `'withdrawn'` | `'expired'` | `'used'`
+- `made_by` (text): `'buyer'` | `'seller'`
+- `parent_offer_id` (uuid, nullable, references `offers.id`, on delete set null)
+- `status` (text): `'pending'` | `'accepted'` | `'declined'` | `'countered'` | `'withdrawn'` | `'expired'` | `'used'`
 - `expires_at` (timestamptz)
 - `responded_at` (timestamptz, nullable)
-- `order_id` (uuid, nullable, references `orders.id` on delete set null) — links to order upon checkout
+- `order_id` (uuid, nullable, references `orders.id`, on delete set null)
 - `created_at` (timestamptz)
 
 ---
 
-## 5. Auxiliary & User Interaction Tables
+## 5. Reviews, Customer & Other Tables
 
 ### `reviews`
-- `id` (uuid, primary key), `product_id` (uuid), `user_id` (uuid), `rating` (integer 1-5), `comment` (text), `status` ('pending' | 'approved'), `verified_purchase` (boolean), `created_at` (timestamptz)
+- `id` (uuid, primary key)
+- `product_id` (uuid, references `products.id`)
+- `user_id` (uuid, references `auth.users.id`)
+- `rating` (integer, 1 to 5)
+- `comment` (text, nullable)
+- `status` (text): `'pending'` | `'approved'`. Only approved reviews are shown.
+- `verified_purchase` (boolean)
+- `created_at` (timestamptz)
 
-### `addresses` & `wishlist_items`
-- `addresses`: `id`, `user_id`, `label`, `full_name`, `phone`, `state`, `area`, `street`, `is_default`
-- `wishlist_items`: `id`, `user_id`, `variant_id`, UNIQUE(`user_id`, `variant_id`)
+### `addresses`
+- `id`, `user_id`, `label` (nullable), `full_name`, `phone`, `state`, `area` (nullable), `street`, `is_default`
 
-### `enquiries` & `newsletter_subscribers`
-- `enquiries`: `id`, `kind` ('contact' | 'bulk'), `name`, `email`, `phone`, `company`, `message`, `replied`, `created_at`
-- `newsletter_subscribers`: `id`, `email` (unique)
+### `wishlist_items`
+- `id`, `user_id`, `variant_id`
+- **Unique:** `(user_id, variant_id)`
+
+### `enquiries`
+Contact and bulk sales messages.
+- `id` (uuid, primary key)
+- `kind` (text): `'contact'` | `'bulk'`
+- `name`, `email`, `phone` (nullable), `company` (nullable), `message`
+- `handled` (boolean, default `false`). The app uses this column.
+- `created_at` (timestamptz)
+
+### `newsletter_subscribers`
+- `id` (uuid, primary key), `email` (text, unique)
 
 ### `rebuild_queue`
-Deploy queue for GitHub Pages static site generation.
-- `id` (bigint, primary key), `reason` (text), `created_at` (timestamptz), `done` (boolean)
+Queue for the GitHub Pages rebuild.
+- `id` (bigint, primary key)
+- `reason` (text), e.g. `product <slug>`, `category <slug>`, `seller <slug>`
+- `created_at` (timestamptz)
+- `done` (boolean). May not update reliably; check before relying on it.
 
 ---
 
-## 6. Views, Stored Functions & Cron Jobs
+## 6. Views
 
-### Security Views
-- **`public_sellers`** (`security_invoker = true`): Exposes non-sensitive metadata for approved sellers (`slug`, `display_name`, `kind`, `state`, `created_at`).
+### `public_sellers` (`security_invoker = true`)
+Approved sellers only. Exposes `slug`, `display_name`, `kind`, `state`, `created_at`, `status`. Visitors may read these columns only.
 
-### Core Database Functions
-- **`is_admin()`**: Returns `true` if `profiles.role = 'admin'` for `auth.uid()`.
-- **`current_seller_id()`**: Returns approved `sellers.id` for `auth.uid()`.
-- **`offer_window()`**: Returns `interval '48 hours'`.
-- **`max_buyer_offers()`**: Returns integer `3`.
-- **`offer_payment_grace()`**: Returns `interval '1 hour'`.
-- **`make_offer(p_conversation_id, p_variant_id, p_amount_kobo)`**: Creates a pending buyer offer after validating stock, listing price, open offers, and buyer offer limits.
-- **`respond_to_offer(p_offer_id, p_action, p_amount_kobo)`**: Handles `'accept'`, `'decline'`, or `'counter'` actions and resets offer expiration window or inserts counter offer.
-- **`withdraw_offer(p_offer_id)`**: Withdraws pending offer made by sender.
-- **`release_offer_on_cancel()`**: Trigger function on `orders` status update to `'cancelled'`; resets attached used offer back to `'accepted'` (or `'expired'`).
-- **`release_unpaid_offers()`**: Releases offers linked to unpaid Paystack card orders past the 1-hour grace period.
-- **`seller_set_pause(p_product_id, p_paused)`**: Toggles `seller_paused` state on vendor products.
+---
 
-### Scheduled Cron Jobs (`pg_cron`)
-- **`expire-offers`** (Every 15 mins): Sets pending/accepted offers past `expires_at` to `'expired'`.
-- **`release-unpaid-offers`** (Every 15 mins): Calls `public.release_unpaid_offers()`.
-- **`rebuild-site`** (Every 5 mins): Invokes Edge Function `rebuild-site` if `rebuild_queue` has pending items.
+## 7. Stored Functions
+
+### Access and status helpers
+- `is_admin()`: true when `profiles.role = 'admin'` for `auth.uid()`.
+- `current_seller_id()`: the approved seller id for `auth.uid()`, or null.
+- `offer_window()`: returns `interval '48 hours'`.
+- `max_buyer_offers()`: returns `3`.
+- `offer_payment_grace()`: returns `interval '1 hour'`.
+- `seller_product_ready(product_id)`: true when a product has a name of at least 3 characters, a brand, a category, a description of at least 20 characters, a warranty, a photo and an active variant priced above zero.
+- `can_manage_product_photo(path)`: true when the first folder of a storage path is a product id owned by the current seller. Keep this helper when editing storage rules.
+
+### Products and sellers
+- `seller_set_pause(p_product_id, p_paused)`: toggles `seller_paused` for the seller's own product.
+- `seller_rating(p_slug)`: returns average rating and review count for a seller.
+- `category_field_usage(p_category_id)`: returns how many products use each field.
+- `products_missing_required()`: lists live products missing a required detail.
+
+### Triggers
+- `products_default_sumus_seller` (before insert on `products`): sets `seller_id` to the Sumus seller when none is given.
+- `guard_product_changes()` (on `products`): sellers cannot change `seller_id` or `moderation`, and cannot show a product Sumus has hidden. Admin changes are allowed.
+- `check_seller_publish()` (on `products`): blocks sellers from showing an incomplete product.
+- `pause_seller_products()` (on `sellers`): hides all products when a seller leaves `approved`.
+- `queue_site_rebuild()` (on `products` and `categories`): writes to `rebuild_queue` for changes that affect public pages.
+- `queue_seller_rebuild()` (on `sellers`): queues a rebuild on approval, rename, slug, state, kind or status change.
+- `release_offer_on_cancel()` (on `orders`): returns an attached offer to `accepted` (or `expired`) when an order is cancelled.
+- `handle_new_user()`: creates a `profiles` row on sign-up.
+- `notify_site_rebuild()`: old, replaced by the queue. Can be removed.
+
+### Orders and payment
+- `mark_order_paid(reference, amount_kobo, currency, payload)`: marks an order paid, reduces stock and records any overpayment in `admin_note`.
+- `admin_confirm_bank_transfer(p_order_id)`: admin only. Marks a bank transfer order paid. Returns `already_processed`, `paid_short_stock` or success.
+- `admin_set_order_status(p_order_id, p_status)`: admin only. Restocks on cancel or refund.
+- `release_unpaid_offers()`: releases offers linked to unpaid card orders past the grace period.
+
+### Messaging and offers
+- `start_conversation(p_product_id)`: returns the conversation id for the buyer and the product's seller, creating it if needed.
+- `send_message(p_conversation_id, p_body)`
+- `mark_conversation_read(p_conversation_id)`
+- `admin_set_conversation_hidden(p_conversation_id, p_hidden)`: admin only.
+- `make_offer(p_conversation_id, p_variant_id, p_amount_kobo)`: validates stock, listed price, open offers and the buyer's limit, then creates a pending offer.
+- `respond_to_offer(p_offer_id, p_action, p_amount_kobo)`: `'accept'`, `'decline'` or `'counter'`. A counter resets the expiry window or inserts a counter offer.
+- `withdraw_offer(p_offer_id)`: withdraws a pending offer made by the sender.
+
+### Reviews and moderation
+- `review_status(p_product_id)`: returns `can_review`, `already` or `not_eligible` for the signed-in customer.
+- `submit_review(p_product_id, p_rating, p_comment)`
+- `admin_reviews(p_status)`: admin only. Lists reviews by status.
+- `admin_moderate_review(p_review_id, p_action)`: admin only. `'approve'` or `'remove'`.
+
+---
+
+## 8. Row-Level Security
+
+All policies use `(select auth.uid())`.
+
+- **profiles:** "Users read own profile"; "Users update own name and phone".
+- **addresses:** "Customers manage own addresses" (owner only).
+- **wishlist_items:** "Customers manage own wishlist" (owner only).
+- **orders:** "Customers read own orders". **order_items:** "Customers read own order items". Writes go through Edge Functions.
+- **conversations and messages:** participants only, and hidden conversations are excluded for buyer and seller. Writes go through the functions above.
+- **offers:** participants read. Writes go through the offer functions.
+- **reviews:** "Customers read own reviews"; "Customers write own reviews" (insert only, pending, not verified by the client). Public read of approved reviews **(verify name)**.
+- **Public catalogue reads:** categories "Public read categories"; brands "Public read brands"; products, variants and images public read for active rows **(verify names)**.
+- **Admin writes:** categories and brands use separate insert, update and delete rules, each checking `is_admin()`. Brands also allow inserts from approved sellers ("Admins and approved sellers add brands").
+- **sellers:** "Sellers read own application"; "Sellers apply once as pending" (insert, status pending); "Public read approved sellers" (select where `status = 'approved'`). Column privileges limit visitors to `id`, `slug`, `display_name`, `kind`, `state`, `created_at`, `status`.
+- **Seller products:** "Sellers read own products", "Sellers add products", "Sellers edit own products", "Sellers manage own versions", "Sellers manage own photos".
+- **seller_documents:** "Sellers add own documents"; "Sellers read own documents". Admin reads exist **(verify names)**.
+- **enquiries:** public insert from the contact and bulk forms; admin read and update **(verify names)**.
+- **newsletter_subscribers:** public insert **(verify name)**.
+
+---
+
+## 9. Storage
+
+- **Bucket `product-images`** (public). Path: `<product_id>/<timestamp>-<random>.jpg`.
+  - "Admins upload product images" and "Admins delete product images".
+  - "Sellers upload photos for own products" (insert) and "Sellers remove photos for own products" (delete). Both use `can_manage_product_photo`.
+- **Bucket `seller-documents`** (private). Accessed through 5-minute signed URLs.
+  - "Sellers upload own documents" (insert).
+  - "Sellers and admins read documents" (select).
+
+---
+
+## 10. Scheduled Cron Jobs (`pg_cron`)
+
+- **`expire-offers`** (every 15 minutes): sets pending or accepted offers past `expires_at` to `'expired'`.
+- **`release-unpaid-offers`** (every 15 minutes): calls `public.release_unpaid_offers()`.
+- **`rebuild-site`** (every 5 minutes): calls the `rebuild-site` Edge Function through `pg_net` when `rebuild_queue` has pending items.
+
+---
+
+## 11. Edge Functions (reference)
+
+- `create-order`: validates the cart on the server, creates the order, starts a Paystack transaction or records a bank transfer order. Attaches `user_id` when signed in. **Source not in the project files.**
+- `verify-payment`: checks a Paystack reference, then calls `mark_order_paid`.
+- `paystack-webhook`: verifies the HMAC-SHA512 signature, then calls `mark_order_paid`. JWT verification off.
+- `track-order`: guest lookup by order number and email.
+- `rebuild-site`: starts the GitHub Actions deploy when `rebuild_queue` has pending rows. JWT verification off.
+
+---
+
+## 12. Planned Changes (not yet built)
+
+- **Seller payouts:** a Paystack subaccount per seller, stored in `sellers.paystack_subaccount_code`, created on approval. Split logic in `create-order`. Requires the decisions listed in `CLAUDE.md`.
+- **Payment proof:** a private storage bucket and a proof reference on `orders`, for bank transfer proof uploads.
