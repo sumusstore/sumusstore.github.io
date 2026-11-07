@@ -19,13 +19,14 @@ const MENU: MenuItem[] = [
   { label: "Watchlist", href: "/wishlist/" },
   { label: "Saved feed", badge: "NEW" },
   { label: "Saved" },
-  { label: "Buy again" },
-  { label: "Purchases" },
+  { label: "Buy again", href: "/account/orders/" },
+  { label: "Purchases", href: "/account/orders/" },
+  { label: "Addresses", href: "/account/addresses/" },
   { label: "Bids & offers", href: "/messages/" },
   { label: "Recently viewed" },
   { label: "Selling", href: "/my-shop/" },
   { label: "Payments", badge: "NEW" },
-  { label: "Account settings" },
+  { label: "Account settings", href: "/account/profile/" },
 ];
 
 function MenuRow({ item }: { item: MenuItem }) {
