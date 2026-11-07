@@ -1,3 +1,4 @@
+// components/wishlist-view.tsx
 "use client";
 
 import Image from "next/image";
@@ -225,14 +226,12 @@ export function WishlistView() {
         >
           View cart
         </Link>
-        <a
-          href={SITE.whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          href="/contact/"
           className="mt-3 block rounded-full border border-blue-700 px-6 py-3 text-center font-semibold text-blue-700 hover:bg-blue-50"
         >
-          Ask us on WhatsApp
-        </a>
+          Send us a message
+        </Link>
       </aside>
     </div>
   );
