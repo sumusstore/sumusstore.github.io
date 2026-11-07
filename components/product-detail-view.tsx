@@ -11,6 +11,7 @@ import { MessageSellerButton } from "@/components/message-seller-button";
 import { Modal } from "@/components/modal";
 import { ProductCard } from "@/components/product-card";
 import { ProductGallery } from "@/components/product-gallery";
+import { ReviewForm } from "@/components/review-form";
 import { VariantPicker, type PickerOption } from "@/components/variant-picker";
 import { useCatalogue } from "@/hooks/use-catalogue";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -721,10 +722,9 @@ export function ProductDetailView({ slug }: { slug: string }) {
             </ul>
           )}
 
-          <p className="mt-6 text-sm text-slate-600">
-            Reviews appear after we check them. Writing a review needs an account, which comes with
-            the account pages.
-          </p>
+          <div className="mt-6">
+            <ReviewForm productId={product.id} />
+          </div>
         </section>
       </section>
 
