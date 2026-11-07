@@ -1,3 +1,4 @@
+// components/cart-view.tsx
 "use client";
 
 import Image from "next/image";
@@ -272,15 +273,6 @@ export function CartView() {
               Checkout
             </Link>
           )}
-
-          <a
-            href={SITE.whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 block rounded-full border border-slate-300 px-6 py-3 text-center font-semibold text-ink hover:border-slate-500"
-          >
-            Order on WhatsApp instead
-          </a>
         </aside>
       </div>
     </section>
