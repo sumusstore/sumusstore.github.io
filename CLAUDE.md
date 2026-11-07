@@ -1,24 +1,35 @@
 # Project Overview & AI Operating Rules
 
 ## Project Context
-- **Project Name:** Sumus Marketplace (Nigerian multi-vendor e-commerce store for electricals, gadgets, power/solar, appliances, and third-party seller shops)[span_0](start_span)[span_0](end_span).
-- **Tech Stack:** Next.js 15 (App Router, static export), React 19, TypeScript 5, Tailwind CSS 4, Zustand 5, Supabase, Paystack, GitHub Pages[span_1](start_span)[span_1](end_span).
+- **Project Name:** Sumus Marketplace (Nigerian multi-vendor e-commerce store for electrical building materials, gaming/laptop accessories, AC/refrigerator repair parts, solar/power products, smart home devices, and third-party seller shops).
+- **Live Site:** https://sumusstore.github.io
+- **Tech Stack:** Next.js 15 (App Router, static export `output: "export"`, `trailingSlash: true`, `images: { unoptimized: true }`), React 19, TypeScript 5 (strict mode), Tailwind CSS 4 (`@theme` in `app/globals.css`), Zustand 5 (persisted to `localStorage`), Supabase (Postgres, Auth, Storage, Edge Functions, `pg_cron`, `pg_net`), Paystack (card, bank, USSD), GitHub Pages (deployed via GitHub Actions on push to `main`).
 
 ## Token-Saving & Workflow Rules
-1. **Full File Replacement Mode:** I am a non-technical creator. **Never give me small code snippets, partial diffs, or instructions to change lines individually.** When I ask for a fix or feature, always output the **complete, full code** for that single file so I can delete the old file and paste the new one.
-2. **One File at a Time:** Focus only on the specific file requested (e.g., `components/product-card.tsx`). Never rewrite or output multiple files or the whole project at once.
-3. **Database Awareness:** Refer strictly to the tables and views defined in `database-schema.md` (`products`, `product_variants`, `sellers`, `public_sellers`, `orders`, `profiles`, etc.)[span_2](start_span)[span_2](end_span).
+1. **Full File Replacement Mode:** Output the **complete, full code** for a single file when asked for a fix or feature so the old file can be deleted and the new one pasted in one go. Check that the last line is `}`.
+2. **One File at a Time:** Focus strictly on the specific file requested (e.g., `components/product-detail-view.tsx`). Never rewrite or output multiple files or the whole project at once.
+3. **Database Awareness:** Refer strictly to the tables, views, and functions defined in `Database_Schema_Summary.md` (`products`, `product_variants`, `sellers`, `public_sellers`, `orders`, `conversations`, `messages`, `offers`, `category_fields`, etc.).
 4. **No Conversational Fluff:** Skip long greetings or repetitive explanations. Give the complete file code directly, followed by a short 1-sentence summary of what was updated.
-5. **Security:** Never expose Supabase `service_role` keys or Paystack secret keys in client-side code[span_3](start_span)[span_3](end_span).
+5. **Security:** Never expose Supabase `service_role` keys or Paystack secret keys in client-side code. RLS policies must strictly use `(select auth.uid())`. Third-party sellers access public vendor data only through `public_sellers` or explicitly granted columns (`id`, `slug`, `display_name`, `kind`, `state`, `created_at`, `status`).
 
-## Core Architecture & Design Reminders
-- **Multi-Vendor Model:** Products belong to Sumus (`seller_id` is null) or approved third-party sellers (`seller_id` linked to `sellers`). Approved public sellers are fetched via the `public_sellers` view (`security_invoker = true`)[span_4](start_span)[span_4](end_span).
-- **Money Handling:** Prices are stored as integers in **kobo** and formatted using `formatNaira(kobo)` (`lib/format.ts`)[span_5](start_span)[span_5](end_span).
-- **Static Export Constraints:** Built with `output: "export"` and `trailingSlash: true` for GitHub Pages. Dynamic pages rely on `generateStaticParams`[span_6](start_span)[span_6](end_span).
+## Core Architecture & Reference Rules
+- **Reference Model:** eBay ONLY (seller shop pages, "Sold by" on every product with a shop link, listings filters/sort, eBay-style messaging, and Best Offer). Do not copy or refer to other marketplaces.
+- **Approval System:** Sumus approves each seller and each product listing before it goes live. Sumus can hide any product or conversation at any time.
+- **Multi-Vendor Model:** Products belong to Sumus (`seller_id` is null) or approved third-party sellers (`seller_id` linked to `sellers`). Approved public sellers are queried via `public_sellers` (`security_invoker = true`).
+- **Money Handling:** Prices are stored as integers in **kobo** (`price_kobo`, `amount_kobo`) and formatted using `formatNaira(kobo)` (`lib/format.ts`).
+- **Static Export Constraints:** Built with `output: "export"` and `trailingSlash: true`. Dynamic routes rely on `generateStaticParams`.
 
-## Active Priority Task
-- **Product Page Batch (In Progress):** Replacing "Sold by Sumus" with the seller's name/link on product cards and product pages (`/seller/[slug]`), displaying warranty periods, and ensuring "Sellers" links appear in the footer and mobile menu[span_7](start_span)[span_7](end_span).
+## Completed & Confirmed Features
+- **In-App Buyer-Seller Messaging:** `/messages/` inbox and conversation view (`/messages/?c=<id>`), message button on seller products, unread badge in header, seller dashboard messages card, admin messaging view (`components/admin-conversations.tsx`).
+- **Best Offer ("Make an offer"):** Seller toggle (`accepts_offers`), in-app negotiation flow inside message thread, offer cards (Accept, Counter, Decline, Withdraw, Pay at this price), 48-hour expiration (`offer_window()`), 3 lifetime buyer offers per variant (`max_buyer_offers()`), cart/checkout offer pricing, automatic offer release on order cancellation trigger (`release_offer_on_cancel()`) or unpaid card orders via cron (`release_unpaid_offers()`).
+- **Product Specification Fields:** Admin category field builder (`category_fields`), required validation on seller forms, dynamic filters in catalogue sidebar (`specFacets`), specifications rendered on product page.
+- **Seller Controls:** Seller pause/resume per product (`seller_paused`), document uploads (`seller_documents`), live checklist.
+
+## Active Priority Task & Next Steps
+- **Replacing WhatsApp Links:** Replacing remaining legacy WhatsApp links (wishlist, contact page, footer, Sumus-stock messaging) with in-app flows step-by-step.
+- **Seller Payouts & Orders:** Paystack subaccount setup, split payments (90/10 proposal), seller order management in My Shop.
+- **Verified Reviews & Moderation:** Admin review approval screen and verified buyer review forms.
 
 ## Key Commands
-- Dev Server: `npm run dev`[span_8](start_span)[span_8](end_span)
-- Build Project: `npm run build`[span_9](start_span)[span_9](end_span)
+- Dev Server: `npm run dev`
+- Build Project: `npm run build`
