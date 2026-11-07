@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { FollowSellerButton } from "@/components/follow-seller-button";
 import { ProductCard } from "@/components/product-card";
 import { buildCards, EMPTY_FILTERS, type CatalogueProduct } from "@/lib/catalogue";
 import { supabase } from "@/lib/supabase";
@@ -183,6 +184,10 @@ export function SellerView({ slug }: { slug: string }) {
           <p className="text-sm text-slate-600">
             {cards.length} {cards.length === 1 ? "product" : "products"}
           </p>
+        </div>
+
+        <div className="mt-4">
+          <FollowSellerButton sellerSlug={slug} />
         </div>
 
         {cards.length === 0 ? (
