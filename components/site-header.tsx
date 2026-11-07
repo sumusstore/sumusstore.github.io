@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useCategoryTree } from "@/hooks/use-category-tree";
 import { useConversations } from "@/hooks/use-conversations";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -11,6 +12,7 @@ import { useWishlistStore } from "@/stores/wishlist-store";
 import {
   CartIcon,
   ChevronDownIcon,
+  CloseIcon,
   HeartIcon,
   MenuIcon,
   MessageIcon,
@@ -31,8 +33,14 @@ function CountBadge({ count }: { count: number }) {
 export function SiteHeader() {
   const { tree, status } = useCategoryTree();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const hydrated = useHydrated();
+  const pathname = usePathname();
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchPanelRef = useRef<HTMLDivElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
 
   const cartCount = useCartStore(selectCartCount);
   const wishlistCount = useWishlistStore((state) => state.items.length);
@@ -43,6 +51,46 @@ export function SiteHeader() {
   const shownWishlistCount = hydrated ? wishlistCount : 0;
 
   const activeNode = tree.find((node) => node.id === activeId);
+
+  // Closes the search panel whenever the customer moves to another page.
+  useEffect(() => {
+    setSearchOpen(false);
+  }, [pathname]);
+
+  // While the search panel is open: focus the input, close on Escape or a click outside it.
+  useEffect(() => {
+    if (!searchOpen) return;
+
+    searchInputRef.current?.focus();
+
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setSearchOpen(false);
+    }
+
+    function handlePointer(event: MouseEvent) {
+      const target = event.target as Node;
+      if (searchPanelRef.current?.contains(target)) return;
+      if (searchButtonRef.current?.contains(target)) return;
+      setSearchOpen(false);
+    }
+
+    document.addEventListener("keydown", handleKey);
+    document.addEventListener("mousedown", handlePointer);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.removeEventListener("mousedown", handlePointer);
+    };
+  }, [searchOpen]);
+
+  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    const query = searchInputRef.current?.value.trim() ?? "";
+    if (!query) {
+      event.preventDefault();
+      searchInputRef.current?.focus();
+      return;
+    }
+    setSearchOpen(false);
+  }
 
   return (
     <header className="sticky top-0 z-40 bg-white shadow-sm">
@@ -76,9 +124,9 @@ export function SiteHeader() {
         </div>
       </div>
 
-      {/* Main row: menu, logo, icons, and search with a category picker */}
-      <div className="border-b border-slate-200">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3 md:flex-nowrap md:gap-6">
+      {/* Main row: menu, logo, and icons (search, account, messages, wishlist, cart) */}
+      <div className="relative border-b border-slate-200">
+        <div className="mx-auto flex max-w-6xl items-center gap-x-3 px-4 py-3 md:gap-6">
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
@@ -93,51 +141,22 @@ export function SiteHeader() {
             <span className="border-b-4 border-gold pb-0.5">{SITE.name}</span>
           </Link>
 
-          <form
-            action="/search/"
-            method="get"
-            role="search"
-            className="order-last flex w-full overflow-hidden rounded-full border-2 border-blue-700 focus-within:ring-2 focus-within:ring-blue-200 md:order-none md:w-auto md:flex-1"
-          >
-            <label htmlFor="header-category" className="sr-only">
-              Category
-            </label>
-            <select
-              id="header-category"
-              name="cat"
-              className="hidden max-w-40 shrink-0 border-r border-slate-300 bg-slate-100 px-3 text-sm text-ink md:block"
-            >
-              <option value="">All categories</option>
-              {tree.map((node) => (
-                <option key={node.id} value={node.slug}>
-                  {node.name}
-                </option>
-              ))}
-            </select>
-
-            <label htmlFor="header-search" className="sr-only">
-              Search products
-            </label>
-            <input
-              id="header-search"
-              type="search"
-              name="q"
-              placeholder="Search for phones, TVs, appliances and more"
-              className="min-w-0 flex-1 bg-white px-4 py-2.5 text-sm focus:outline-none"
-            />
-            <button
-              type="submit"
-              aria-label="Search"
-              className="flex shrink-0 items-center justify-center bg-blue-700 px-5 text-white hover:bg-blue-800"
-            >
-              <SearchIcon className="h-5 w-5" />
-            </button>
-          </form>
-
           <nav
-            aria-label="Account, wishlist and cart"
-            className="ml-auto flex shrink-0 items-center gap-1 md:ml-0 md:gap-4"
+            aria-label="Search, account, wishlist and cart"
+            className="ml-auto flex shrink-0 items-center gap-1 md:gap-4"
           >
+            <button
+              ref={searchButtonRef}
+              type="button"
+              onClick={() => setSearchOpen((open) => !open)}
+              aria-label="Search products"
+              aria-expanded={searchOpen}
+              aria-controls="header-search-panel"
+              className="flex flex-col items-center gap-0.5 p-1 text-xs text-ink hover:text-blue-700"
+            >
+              <SearchIcon className="h-6 w-6" />
+              <span className="hidden lg:block">Search</span>
+            </button>
             <Link
               href="/account/"
               aria-label="My account"
@@ -175,6 +194,69 @@ export function SiteHeader() {
             </Link>
           </nav>
         </div>
+
+        {/* Search panel: drops down below the main row when the search icon is pressed */}
+        {searchOpen && (
+          <div
+            ref={searchPanelRef}
+            id="header-search-panel"
+            role="search"
+            className="absolute inset-x-0 top-full z-50 border-b border-slate-200 bg-white shadow-lg"
+          >
+            <div className="mx-auto max-w-3xl px-4 py-4">
+              <form
+                action="/search/"
+                method="get"
+                onSubmit={handleSearchSubmit}
+                className="flex overflow-hidden rounded-full border-2 border-blue-700 focus-within:ring-2 focus-within:ring-blue-200"
+              >
+                <label htmlFor="header-category" className="sr-only">
+                  Category
+                </label>
+                <select
+                  id="header-category"
+                  name="cat"
+                  className="hidden max-w-40 shrink-0 border-r border-slate-300 bg-slate-100 px-3 text-sm text-ink md:block"
+                >
+                  <option value="">All categories</option>
+                  {tree.map((node) => (
+                    <option key={node.id} value={node.slug}>
+                      {node.name}
+                    </option>
+                  ))}
+                </select>
+
+                <label htmlFor="header-search" className="sr-only">
+                  Search products
+                </label>
+                <input
+                  ref={searchInputRef}
+                  id="header-search"
+                  type="search"
+                  name="q"
+                  placeholder="Search for phones, TVs, appliances and more"
+                  className="min-w-0 flex-1 bg-white px-4 py-2.5 text-sm focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  aria-label="Search"
+                  className="flex shrink-0 items-center justify-center bg-blue-700 px-5 text-white hover:bg-blue-800"
+                >
+                  <SearchIcon className="h-5 w-5" />
+                </button>
+              </form>
+              <button
+                type="button"
+                onClick={() => setSearchOpen(false)}
+                aria-label="Close search"
+                className="mt-3 flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-ink"
+              >
+                <CloseIcon className="h-4 w-4" />
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Category row, with subcategories on hover */}
