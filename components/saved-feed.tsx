@@ -39,8 +39,10 @@ const BUTTON =
 const GHOST =
   "rounded-full border border-blue-700 px-5 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50";
 
-const TOGGLE =
-  "rounded-full border px-4 py-2 text-sm font-semibold";
+const VIEW_OPTIONS: { value: FeedView; label: string }[] = [
+  { value: "grid", label: "Grid" },
+  { value: "list", label: "List" },
+];
 
 function findNode(nodes: CategoryNode[], id: string): CategoryNode | null {
   for (const node of nodes) {
@@ -85,6 +87,58 @@ function takeFresh(
     items.push({ card, reason: reasonOf(card) });
   }
   return items;
+}
+
+/** One button showing the current view, which opens a small menu with Grid and List. */
+function ViewMenu({ view, onChange }: { view: FeedView; onChange: (view: FeedView) => void }) {
+  const [open, setOpen] = useState(false);
+  const current = VIEW_OPTIONS.find((option) => option.value === view);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-slate-500"
+      >
+        <span aria-hidden="true" className="grid h-4 w-4 grid-cols-2 gap-0.5">
+          <span className="rounded-sm border border-current" />
+          <span className="rounded-sm border border-current" />
+          <span className="rounded-sm border border-current" />
+          <span className="rounded-sm border border-current" />
+        </span>
+        {current?.label}
+        <span aria-hidden="true" className="text-xs">▾</span>
+      </button>
+
+      {open && (
+        <ul
+          role="menu"
+          className="absolute right-0 top-full z-30 mt-1 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+        >
+          {VIEW_OPTIONS.map((option) => (
+            <li key={option.value} role="none">
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={view === option.value}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-ink hover:bg-slate-50"
+              >
+                {option.label}
+                {view === option.value && <span aria-hidden="true">✓</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function SavedFeed() {
@@ -425,22 +479,8 @@ export function SavedFeed() {
         </div>
       ) : (
         <>
-          <div className="flex justify-end gap-2">
-            {(["grid", "list"] as FeedView[]).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setView(option)}
-                aria-pressed={view === option}
-                className={`${TOGGLE} ${
-                  view === option
-                    ? "border-blue-700 bg-blue-700 text-white"
-                    : "border-slate-300 text-ink hover:border-slate-500"
-                }`}
-              >
-                {option === "grid" ? "Grid" : "List"}
-              </button>
-            ))}
+          <div className="flex justify-end">
+            <ViewMenu view={view} onChange={setView} />
           </div>
 
           {sections.map((section) => (
