@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { CatalogueView } from "@/components/catalogue-view";
+import { SaveSearchButton } from "@/components/save-search-button";
 import { useCategoryTree, type CategoryNode } from "@/hooks/use-category-tree";
 
 function findCategory(nodes: CategoryNode[], slug: string): CategoryNode | null {
@@ -73,7 +74,32 @@ function SearchResults() {
     ? `Results for "${query}"${category ? ` in ${category.name}` : ""}`
     : (category?.name ?? "Search");
 
-  return <CatalogueView title={title} query={query} categoryIds={categoryIds} />;
+  // Builds the label shown in the Saved feed, such as "laptop in Computers".
+  const searchLabel = [query ? `"${query}"` : null, category ? `in ${category.name}` : null]
+    .filter(Boolean)
+    .join(" ");
+
+  // The address the shopper returns to after logging in.
+  const returnTo = `/search/?${new URLSearchParams(
+    [
+      ...(query ? [["q", query]] : []),
+      ...(categorySlug ? [["cat", categorySlug]] : []),
+    ] as [string, string][]
+  ).toString()}`;
+
+  return (
+    <>
+      <div className="mx-auto max-w-6xl px-4 pt-6">
+        <SaveSearchButton
+          label={searchLabel}
+          query={query}
+          categoryId={category?.id ?? null}
+          returnTo={returnTo}
+        />
+      </div>
+      <CatalogueView title={title} query={query} categoryIds={categoryIds} />
+    </>
+  );
 }
 
 export default function SearchPage() {
