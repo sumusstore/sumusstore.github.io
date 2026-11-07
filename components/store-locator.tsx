@@ -1,8 +1,9 @@
+// components/store-locator.tsx
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Notice } from "@/components/form-field";
-import { SITE } from "@/lib/site-config";
 import { supabase } from "@/lib/supabase";
 
 type Store = {
@@ -87,16 +88,14 @@ export function StoreLocator() {
       <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
         <p className="font-semibold text-ink">Our store list is being updated.</p>
         <p className="mt-1 text-sm text-slate-600">
-          Message us on WhatsApp to ask about pickup options.
+          Send us a message to ask about pickup options.
         </p>
-        <a
-          href={SITE.whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          href="/contact/"
           className="mt-4 inline-block font-semibold text-blue-700 hover:underline"
         >
-          Chat on WhatsApp
-        </a>
+          Send us a message
+        </Link>
       </div>
     );
   }
