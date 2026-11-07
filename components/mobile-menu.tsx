@@ -1,3 +1,4 @@
+// components/mobile-menu.tsx
 "use client";
 
 import Link from "next/link";
@@ -96,14 +97,13 @@ export function MobileMenu({ open, onClose, tree, status }: MobileMenuProps) {
           >
             Call {SITE.phoneDisplay}
           </a>
-          <a
-            href={SITE.whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/contact/"
+            onClick={onClose}
             className="block rounded-lg border border-slate-300 px-4 py-3 text-center font-semibold text-slate-800"
           >
-            Chat on WhatsApp
-          </a>
+            Send us a message
+          </Link>
         </div>
       </aside>
     </div>
