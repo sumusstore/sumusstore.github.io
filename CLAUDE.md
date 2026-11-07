@@ -1,81 +1,90 @@
 # Project Overview & AI Operating Rules
 
 ## Project Context
-- **Project Name:** Sumus Marketplace (Nigerian multi-vendor e-commerce store selling building materials, electrical products, laptop and gaming accessories, AC and fridge repair parts, solar and power products, smart home devices, and third-party seller shops).
+- **Project Name:** Sumus Marketplace (Nigerian multi-vendor e-commerce store for electrical building materials, laptop and gaming accessories, AC and refrigerator repair parts, solar and power products, smart home devices, phones, TVs and appliances, and third-party seller shops).
 - **Live Site:** https://sumusstore.github.io
-- **Tech Stack:** Next.js 15 (App Router, static export `output: "export"`, `trailingSlash: true`, `images: { unoptimized: true }`), React 19, TypeScript 5 (strict), Tailwind CSS 4 (`@theme` in `app/globals.css`), Zustand 5 (persisted to `localStorage`), Supabase (Postgres, Auth, Storage, Edge Functions, `pg_cron`, `pg_net`), Paystack (card, bank, USSD), GitHub Pages (GitHub Actions deploy on push to `main`).
-- **Build Environment:** The owner works from a phone browser and has no computer. Give step-by-step, plain-language instructions for any database or dashboard work, with exact text to paste and clear confirmation checks. Avoid unexplained technical jargon.
+- **Tech Stack:** Next.js 15 (App Router, static export `output: "export"`, `trailingSlash: true`, `images: { unoptimized: true }`), React 19, TypeScript 5 (strict mode), Tailwind CSS 4 (`@theme` in `app/globals.css`), Zustand 5 (persisted to `localStorage`), Supabase (Postgres, Auth, Storage, Edge Functions, `pg_cron`, `pg_net`), Paystack (card, bank, USSD), GitHub Pages (deployed via GitHub Actions on push to `main`).
+- **Currency:** Nigerian Naira (₦). Prices stored as integers in kobo.
 
 ## Token-Saving & Workflow Rules
-1. **Full File Replacement Mode:** Output the complete, full code for a single file when asked for a fix or feature so the old file can be replaced in one go. Check that the last line is `}`.
-2. **One File at a Time:** Focus on the specific file requested. Never rewrite or output multiple files or the whole project at once.
-3. **Database Awareness:** Refer to the tables, views, and functions in `Database_Schema_Summary.md` and the changes listed below.
-4. **No Conversational Fluff:** Skip long greetings. Give the complete file code, followed by a short one-sentence summary.
-5. **Test Steps:** After each file, give a short phone test the owner can run to confirm the change works.
-6. **Inline Responses:** The owner prefers inline text answers over file downloads or interactive widgets.
-7. **Security:** Never expose Supabase `service_role` keys or Paystack secret keys in client code. RLS policies must use `(select auth.uid())`. Third-party sellers access public vendor data only through `public_sellers` or explicitly granted columns (`id`, `slug`, `display_name`, `kind`, `state`, `created_at`, `status`).
-8. **Database Scripts:** Give SQL in a single block the owner can paste into the Supabase SQL Editor. Warn them if a script must not be run twice, and say what to check afterwards.
+1. **Full File Replacement Mode:** Output the **complete, full code** for a single file when asked for a fix or feature so the old file can be deleted and the new one pasted in one go. Check that the last line is `}`.
+2. **One File at a Time:** Focus strictly on the specific file requested (e.g., `components/product-detail-view.tsx`). Never rewrite or output multiple files or the whole project at once. Small, clearly marked edits (import line plus one replaced block) are acceptable when the user asks for them.
+3. **Database Awareness:** Refer strictly to the tables, views, functions, and policies defined in `Database_Schema_Summary.md`. If code calls an RPC or table that is not in that file (for example `review_status`, `submit_review`, `seller_rating`, `mark_conversation_read`, `send_message`, `make_offer`, `respond_to_offer`, `withdraw_offer`, `start_conversation`, `admin_reviews`, `admin_moderate_review`, `admin_set_conversation_hidden`, `category_field_usage`, `products_missing_required`, `admin_confirm_bank_transfer`, `admin_set_order_status`, `seller_set_pause`), flag it and ask the user to confirm it exists in Supabase before relying on it.
+4. **No Conversational Fluff:** Skip long greetings or repetitive explanations. Give the complete file code directly, followed by a short 1-sentence summary of what was updated.
+5. **Security:** Never expose Supabase `service_role` keys or Paystack secret keys in client-side code. RLS policies must strictly use `(select auth.uid())`. Third-party sellers access public vendor data only through `public_sellers` or the explicitly granted columns on `sellers` (`id`, `slug`, `display_name`, `kind`, `state`, `created_at`, `status`). Private seller columns (`account_number`, `bank_name`, `owner_phone`, `address`, `registration_number`) must never be selected by visitor-facing code.
+6. **Inline Responses:** The user prefers inline text responses over file-based or interactive outputs. Use files only for deliverables that are clearly needed as files.
 
 ## Core Architecture & Reference Rules
-- **Reference Model:** eBay ONLY (seller shop pages, "Sold by" with a shop link on every product, listing filters and sort, eBay-style messaging, Best Offer). Do not copy or refer to other marketplaces.
+- **Reference Model:** eBay ONLY for marketplace behaviour (seller shop pages, "Sold by" on every product with a shop link, listing filters and sort, eBay-style messaging, Best Offer). Slot.ng is the reference for the storefront layout (trust strip, category icons, deal rows, strong CTAs). Do not copy or refer to other marketplaces.
 - **Approval System:** Sumus approves each seller and each product listing before it goes live. Sumus can hide any product or conversation at any time.
-- **Multi-Vendor Model:** Every product belongs to an approved seller. Sumus's own stock is sold through its own seller record, `slug = 'sumus'`, which is owned by the owner's admin account. Approved sellers are queried via `public_sellers` (`security_invoker = true`).
-- **Money Handling:** Prices are stored as integers in **kobo** (`price_kobo`, `amount_kobo`) and formatted with `formatNaira(kobo)` (`lib/format.ts`).
-- **Static Export Constraints:** Built with `output: "export"` and `trailingSlash: true`. Dynamic routes rely on `generateStaticParams`.
+- **Multi-Vendor Model:** Products belong to Sumus (`seller_id` is null) or approved third-party sellers (`seller_id` linked to `sellers`). Approved public sellers are read via `public_sellers` (`security_invoker = true`).
+- **Money Handling:** Prices are stored as integers in **kobo** (`price_kobo`, `amount_kobo`, `fee_kobo`, `total_kobo`) and formatted with `formatNaira(kobo)` (`lib/format.ts`). Admin and seller inputs use `nairaToKobo` and `koboToNairaText` (`lib/admin-utils.ts`).
+- **Static Export Constraints:** Built with `output: "export"` and `trailingSlash: true`. Dynamic routes rely on `generateStaticParams`. Pages that depend on live data (shop, search, homepage rows, messages, account) read from Supabase in the browser.
+- **Visual System:** Teal primary (`#0F5C5A`, via `blue-*` overrides), gold accent (`#C9A227`), paper background (`#FAF7F0`), ink text (`#1F2937`). Cards use `rounded-xl`, a 1px slate border, and a 4px gold top border (`border-t-4 border-t-gold`). Primary buttons use `rounded-full` on newer screens. Info page header bands are teal with a short gold bar beneath.
+- **Mobile First:** Build for phones first, then `md` and `lg` breakpoints. Use the `hidden` / `lg:block` pattern for layouts that differ between phones and laptops, and render shared panels once where possible.
 
-## Sumus Seller Record (in place)
-- The admin account (`adimonyechidi@gmail.com`) owns the seller row `slug = 'sumus'`, kind `individual`, status `approved`. No CAC number is held yet, so it's registered as individual. Add the CAC number later when available.
-- Sumus's bank details are saved on this row. Keep the state and head office address up to date, since the state appears on the public seller page.
-- A database trigger, `products_default_sumus_seller`, sets `seller_id` to Sumus on any new product that has no seller. All existing products with no seller were linked to Sumus.
-- Sumus products now use the same messaging, shop links and offers as other sellers. The "Make an offer" button only appears on Sumus products when "accepts offers" is ticked, so leave it off unless wanted.
-- Known test record: a seller named "B Seller Text" (slug `b-seller-text-0fhx`) exists in the database. Delete it when no longer needed.
+## Key Business Rules (copy and policy numbers)
+- **Delivery:** Lagos 1 to 3 working days; outside Lagos 2 to 7 working days; store pickup free. Defined in `lib/store-policies.ts` (`POLICY_NUMBERS`) and mirrored in the `delivery_zones` table. Keep both in step.
+- **Returns window:** 7 days. **Pickup hold:** 7 days.
+- **Support hours:** Monday to Saturday, 9am to 6pm (`SUPPORT_HOURS`).
+- **Offers:** 48-hour offer window and 3 offers per buyer per variant (`OFFER_RULES` in `lib/store-policies.ts`; enforced by `offer_window()` and `max_buyer_offers()`).
+- **Seller commission:** Sumus keeps 10% of each sale; sellers keep 90%. Sellers deliver their own orders. Seller pages state this. Confirm with owner before building payouts.
+- **Policy pages** (`lib/policy-content.ts`) are DRAFT wording and need legal review before launch. `POLICY_LAST_UPDATED` in `lib/store-policies.ts` must be updated on each change.
 
 ## Completed & Confirmed Features
-- **In-App Buyer-Seller Messaging:** `/messages/` inbox and conversation view (`/messages/?c=<id>`), Message button on seller products, unread badge in header, seller dashboard messages card, admin messaging view (`components/admin-conversations.tsx`).
-- **Best Offer ("Make an offer"):** Seller toggle (`accepts_offers`), negotiation inside the message thread, offer cards (Accept, Counter, Decline, Withdraw, Pay at this price), 48-hour expiry (`offer_window()`), 3 lifetime buyer offers per variant (`max_buyer_offers()`), offer pricing in cart and checkout, automatic release on order cancellation (`release_offer_on_cancel()`) or unpaid card orders (`release_unpaid_offers()`).
-- **Product Specification Fields:** Admin category field builder (`category_fields`), required validation on seller forms, dynamic catalogue filters (`specFacets`), specifications on product pages. Fields are set per subcategory only. Parent categories can't hold products.
-- **Seller Controls:** Seller pause and resume per product (`seller_paused`), Sumus is notified of pauses, document uploads (`seller_documents`), live checklist.
-- **Contact Routing:** The footer, mobile menu, wishlist summary, store locator empty state and cart now use the in-app contact form (`/contact/`) instead of WhatsApp. The cart's "Order on WhatsApp instead" button was removed.
+- **Storefront:** Homepage (hero search, category icons, Today's deals / Price drops / New arrivals rows, trust strip, newsletter), shop (`/shop/`), category pages with subcategory chips, search (`/search/`), product pages with gallery, variants, quantity, buy buttons, similar items, reviews, and a details pop-up system, quick view, compare (max 4), wishlist, cart, guest and signed-in checkout (Paystack or bank transfer), order confirmation with card polling, order tracking (`/track/`), store locator (`/stores/`), FAQ, about, contact, bulk sales, policy pages, and 404.
+- **Header:** Sticky header with a top strip (sign in, track, store locator, help, phone), main row (menu, logo, icon row: search, account, messages, wishlist, cart), and a desktop category bar with mega menu. The search icon opens a dropdown search panel below the header. Closes on Escape, outside click, route change, or after a search. The homepage search remains the full-width search on the page.
+- **Accounts:** Sign up, log in, forgot and reset password, account dashboard (orders, addresses, wishlist, profile, password change, log out). Wishlist syncs to the account when signed in; the cart does not sync. Email confirmation is currently off.
+- **Product Detail Specifications:** Admin category field builder (`category_fields`) with required and filter flags, seller forms validated against required fields, dynamic filters in the catalogue sidebar (`buildSpecFacets`), specifications shown in the "Item description" pop-up in admin-defined order.
+- **Best Offer:** Seller toggle (`accepts_offers`), in-app negotiation in message threads (accept, counter, decline, withdraw, pay at this price), offer cards with 48-hour expiry, cart and checkout offer pricing (`offerId` on cart items), automatic release on cancellation and unpaid card orders via cron.
+- **Messaging:** `/messages/` inbox and thread view (`/messages/?c=<id>`), "Message" button on seller products (`MessageSellerButton`), "Make an offer" entry (`MakeOfferButton`, opens thread with `&offer=`), unread badge in header, seller dashboard messages card, admin messaging view (`admin-conversations.tsx`) with hide and restore. Thread polls every 20 seconds while visible.
+- **Seller marketplace:** Application form with documents (`seller-application-form.tsx`, private `seller-documents` bucket, signed URLs), seller dashboard (`/my-shop/`), seller product editor with live checklist, brand request from sellers, versions, photos, pause and resume per product (`seller_set_pause`), public sellers index (`/sellers/`), public shop pages (`/seller/[slug]/`), seller rating shown when reviews exist.
+- **Reviews:** Product page review form (`components/review-form.tsx`, RPCs `review_status` and `submit_review`) for customers who received the product; approved reviews shown on product pages; admin moderation (`admin-reviews.tsx`, RPCs `admin_reviews` and `admin_moderate_review`). Reviews show only after approval.
+- **Admin (`/admin/`):** Tabs for Orders (confirm bank transfer, status changes, refunds that restock, cancel), Enquiries (mark replied), Messages, Reviews (approve, remove), Sellers (approve, reject, suspend, view documents), Products (create, hide and restore, visibility toggle, edit), Product fields (category field builder and missing-required report), Brands and categories (add and delete brands, create, edit and delete categories, with in-use checks and real database error text). Unseen order and enquiry counts poll every 60 seconds with optional browser notifications. Paused products show a banner until acknowledged.
+- **Build pipeline:** GitHub Actions deploy; rebuild queue (`rebuild_queue`) drained every 5 minutes by `rebuild-site` Edge Function via `pg_cron` and `pg_net`.
 
-## Bank Transfer Flow (current)
-1. Customer chooses bank transfer at checkout. Order is saved as `awaiting_transfer`. Nothing is charged yet.
-2. The confirmation page shows the bank details from `lib/bank-details.ts`, the exact total, and the order number as the reference.
-3. Customer pays from their own banking app, then sends proof on WhatsApp (kept for now).
-4. Owner checks the bank app, then uses **Confirm transfer received** in the admin Orders tab. Status becomes `paid`, stock is reduced, the order moves to processing.
-5. Fulfilment buttons in admin: Start processing, Mark as shipped (or Ready for pickup), Mark as delivered (or Customer collected). Refund and Cancel are also available.
-- **Open issue:** `lib/bank-details.ts` is one fixed account. It must not be used for orders containing seller items. Until the payout decision is made, bank transfer should be limited to Sumus's own products.
+## Database Changes Covered in This Chat
+- `reviews`: `status` ('pending' | 'approved'), `verified_purchase` boolean. Customers may insert reviews only as pending and not verified; approval is admin-only.
+- `products.seller_paused`, `products.seller_paused_at`, and `pause_seen_by_admin` (used by the admin pause banner).
+- `products.accepts_offers` (boolean, default false).
+- `offers` table and offer functions (`make_offer`, `respond_to_offer`, `withdraw_offer`, `release_offer_on_cancel`, `release_unpaid_offers`), with cron job `release-unpaid-offers`.
+- `conversations.hidden_by_admin`, `conversations.last_sender_id`, `buyer_last_read_at`, `seller_last_read_at`, `buyer_name`, and the `start_conversation`, `send_message`, `mark_conversation_read`, `admin_set_conversation_hidden` functions.
+- `enquiries.handled` (the UI uses `handled`; `Database_Schema_Summary.md` lists `replied`. Reconcile before use).
+- `sellers` extended columns used by the application form: `business_name`, `registration_number`, `tax_id`, `owner_full_name`, `owner_phone`, `address`, `bank_name`, `account_name`, `account_number`, `terms_version`, `terms_accepted_at`, `admin_note`, `reviewed_at`. Visitors must not read the private ones.
+- `seller_documents.doc_type` values: `registration`, `owner_id`, `genuine_proof`. Bucket `seller-documents` is private.
+- `addresses` and `wishlist_items` use owner-only RLS.
+- Storage bucket `product-images` is public. Path convention: `<product_id>/<timestamp>-<random>.jpg`. Helper `can_manage_product_photo(path)` must be kept when editing storage rules.
+- `category_field_usage(p_category_id)` and `products_missing_required()` RPCs drive the Product fields admin screen.
+- `seller_rating(p_slug)` RPC returns average and review_count for a seller.
+- `pg_cron` runs `rebuild-site` every 5 minutes; `expire-offers` and `release-unpaid-offers` every 15 minutes.
 
-## Seller Payouts (decided in principle, not yet built)
-- Each approved seller gets a Paystack subaccount, created on approval.
-- Sumus keeps 10% of each seller's item sale. The seller keeps the delivery fee and bears refund costs.
-- Card and USSD payments are split by Paystack at checkout. Sumus's own products are paid in full to Sumus.
-- Bank transfer must not be used for mixed or seller orders, since the money would go to Sumus and the split would be manual.
-- **Open decisions to confirm with the owner before building:**
-  1. Who pays Paystack's transaction fees (Sumus or seller).
-  2. Whether mixed carts (Sumus and seller items together) are allowed.
-  3. Whether bank transfer is hidden when an order contains seller items.
-  4. Payout timing, since Paystack settles on its own schedule and the "24 hours" target must be checked against the Paystack account.
-- The `create-order` Edge Function source must be provided before changing the split. It is not in the project files.
+## Decisions Made
+- Header search uses an icon with a dropdown panel. The homepage search is the only full-width search on the page.
+- Product detail "Sold by" links to the seller shop; Sumus products link to `/about/`.
+- Warranty period is shown on the product page under "Shop with confidence".
+- The seller pause button is available to sellers (`seller_set_pause`). Suspending a seller hides their products immediately.
+- Reviews require an approved review before display; the review form is shown on the product page and checks eligibility through the database.
+- Category form and other admin screens show the real database error text, not a generic message.
+- The seller editor and admin editor both hide a product while it is being edited, then decide visibility again at the end.
+- Cart items priced by an accepted offer stay at quantity 1 and cannot be changed.
 
 ## Active Priority Task & Next Steps
-1. **Contact routing (in progress):** Replace the remaining WhatsApp links one file at a time. Done: footer, mobile menu, cart, wishlist, store locator. Next: order confirmation and order tracking, keeping WhatsApp only for bank transfer proof of payment for now. Then handle the card-payment help button and "Can't find your order?" link.
-2. **Proof of Payment Upload (later):** A private storage bucket and upload on the order pages, with a proof view in admin. Guest orders would need an Edge Function that checks order number and email.
-3. **Seller Payouts & Orders:** Paystack subaccount on approval, split in `create-order`, seller order management in My Shop.
-4. **Verified Reviews & Moderation:** Admin review approval screen and verified buyer review form.
-5. **Admin error messages:** The category form should show the real database error, as the seller editor already does.
-6. **Housekeeping:** Delete the duplicate workflow folder `.github/workflows /` (note the space), keeping `.github/workflows/deploy.yml`.
+1. **Wire in review form:** Add `ReviewForm` to `components/product-detail-view.tsx` in the Reviews section (replace the "comes with the account pages" paragraph). Confirm `review_status` and `submit_review` exist in Supabase.
+2. **Update HANDOFF.md:** Remove completed items (product page batch, admin category error text, seller pause, reviews moderation screen).
+3. **Seller Payouts & Orders (next major build, pending owner confirmation):** Paystack subaccount on seller approval, split payment in `create-order` (90% seller, 10% Sumus; confirm who bears delivery fee and fee bearer), seller order view in My shop, and seller payout tracking.
+4. **Launch items:** Replace bank details in `lib/bank-details.ts`; replace placeholder contact details in `lib/site-config.ts`; update store branches in Supabase `stores`; legal review of policy wording and seller terms; switch Paystack to live keys in GitHub and Supabase; set Paystack fee bearer to the store; enable email confirmation; upgrade Supabase to Pro; add own domain and update redirect URLs; enable 2FA on Supabase, GitHub and Paystack; delete the duplicate workflow file `.github/workflows /deploy.yml` (folder name contains a space); delete test data.
+5. **Later:** Brand merge tool, coupons and discount codes, best sellers and frequently bought together, recently viewed, newsletter sending, transactional email and SMS (Resend, Termii), admin new-order email alert, live chat (optional).
 
-## Launch Checklist
-- Replace bank details in `lib/bank-details.ts` (currently a placeholder account).
-- Replace contact placeholders in `lib/site-config.ts` (phone, email, address, social links currently "#").
-- Update store branches in the Supabase `stores` table.
-- Lawyer review of policy wording, seller agreement, commission and payout terms.
-- Update `POLICY_LAST_UPDATED` in `lib/store-policies.ts`.
-- Switch Paystack to live keys in GitHub and Supabase, add the webhook URL, and set the fee bearer to the store.
-- Delete test orders, products, categories and sellers (including "B Seller Text").
-- Turn on email confirmation in Supabase Auth.
-- Upgrade Supabase to Pro. Add the custom domain and update site and redirect URLs.
-- Turn on 2FA for Supabase, GitHub and Paystack.
+## Known Fragile Areas
+- Static product, category, and seller pages require Supabase to be reachable during build. Changes take up to 5 minutes to queue plus build time to appear on static pages; listing pages update live.
+- Public seller data depends on column privileges. A plain `sellers` select as a visitor will error; use `public_sellers`.
+- New RLS policies must use `(select auth.uid())` and avoid repeating existing checks.
+- Storage seller rule depends on `can_manage_product_photo`. Do not replace with a folder-name comparison.
+- `rebuild_queue.done` may not update reliably; verify before depending on it.
+- Photo upload converts images in the browser; HEIC may fail on some browsers. Ask users to use JPG.
+- Suspending a seller leaves their products hidden after reactivation until they save them again.
+- Warranty period is checked on seller products but must be displayed on product pages (now done for product detail).
+- Next.js is version 15 (earlier notes said 14).
 
 ## Key Commands
 - Dev Server: `npm run dev`
