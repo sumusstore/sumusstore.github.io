@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { RequireAuth } from "@/components/require-auth";
 import { OrdersList } from "@/components/orders-list";
+import { RequireAuth } from "@/components/require-auth";
 
 export const metadata: Metadata = {
   title: "Purchases",
