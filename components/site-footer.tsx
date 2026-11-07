@@ -4,17 +4,15 @@ import { SITE } from "@/lib/site-config";
 
 type FooterLink = { label: string; href: string };
 
-// Main list: the same stacked, large-type rhythm as the screenshot.
 const mainLinks: FooterLink[] = [
   { label: "Home", href: "/" },
   { label: "My Sumus", href: "/account/" },
   { label: "Sell on Sumus", href: "/sell/" },
-  { label: "Help & Contact", href: "/contact/" },
+  { label: "Help & Contact", href: "/help/" },
   { label: "Track an order", href: "/track/" },
   { label: "Find a store", href: "/stores/" },
 ];
 
-// Legal and information row, centred under the divider.
 const legalLinks: FooterLink[] = [
   { label: "Shipping & delivery", href: "/shipping/" },
   { label: "Returns & refunds", href: "/returns/" },
