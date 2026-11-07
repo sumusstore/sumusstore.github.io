@@ -33,7 +33,7 @@ Seller registrations, business details and approval status. Sumus's own stock is
 - `reviewed_at` (timestamptz, nullable)
 - `terms_version` (text) **(verify)**
 - `terms_accepted_at` (timestamptz)
-- `paystack_subaccount_code` (text, nullable). Not yet populated; subaccount creation is pending.
+- `paystack_subaccount_code` (text, nullable). Not yet populated; subaccount creation is pending the payout decisions.
 - `created_at` (timestamptz)
 - **Private columns (never readable by visitors):** `account_number`, `bank_name`, `account_name`, `owner_phone`, `address`, `registration_number`, `tax_id`
 
@@ -46,6 +46,30 @@ Verification documents uploaded by sellers. Opened by admins through 5-minute si
 - `doc_type` (text): `'registration'` | `'owner_id'` | `'genuine_proof'`
 - `file_path` (text)
 - `created_at` (timestamptz)
+
+### `seller_follows`
+Customers following seller shops. Created and confirmed.
+- `user_id` (uuid, not null, references `auth.users.id`, on delete cascade)
+- `seller_id` (uuid, not null, references `sellers.id`, on delete cascade)
+- `created_at` (timestamptz, not null, default `now()`)
+- **Primary key:** `(user_id, seller_id)`
+
+### `saved_searches`
+Searches a customer asked the saved feed to watch. Created and confirmed.
+- `id` (uuid, primary key, default `gen_random_uuid()`)
+- `user_id` (uuid, not null, references `auth.users.id`, on delete cascade)
+- `label` (text, not null, 1 to 120 characters)
+- `query` (text, not null, default `''`)
+- `category_id` (uuid, nullable, references `categories.id`, on delete set null)
+- `created_at` (timestamptz, not null, default `now()`)
+
+### `product_views`
+One row per product per signed-in customer, recording the most recent view. Created and confirmed.
+- `id` (uuid, primary key, default `gen_random_uuid()`)
+- `user_id` (uuid, not null, references `auth.users.id`, on delete cascade)
+- `product_id` (uuid, not null, references `products.id`, on delete cascade)
+- `viewed_at` (timestamptz, not null, default `now()`)
+- **Index:** `product_views_user_recent` on `(user_id, viewed_at desc)`
 
 ---
 
@@ -329,6 +353,9 @@ All policies use `(select auth.uid())`.
 - **profiles:** "Users read own profile"; "Users update own name and phone".
 - **addresses:** "Customers manage own addresses" (owner only).
 - **wishlist_items:** "Customers manage own wishlist" (owner only).
+- **seller_follows:** "Customers manage own follows" (owner only, all operations).
+- **saved_searches:** "Customers manage own saved searches" (owner only, all operations).
+- **product_views:** "Customers manage own product views" (owner only, all operations).
 - **orders:** "Customers read own orders". **order_items:** "Customers read own order items". Writes go through Edge Functions.
 - **conversations and messages:** participants only, and hidden conversations are excluded for buyer and seller. Writes go through the functions above.
 - **offers:** participants read. Writes go through the offer functions.
@@ -374,5 +401,6 @@ All policies use `(select auth.uid())`.
 
 ## 12. Planned Changes (not yet built)
 
-- **Seller payouts:** a Paystack subaccount per seller, stored in `sellers.paystack_subaccount_code`, created on approval. Split logic in `create-order`. Requires the decisions listed in `CLAUDE.md`.
+- **Seller payouts:** a Paystack subaccount per seller, stored in `sellers.paystack_subaccount_code`, created on approval. Split logic in `create-order`. Blocked until the owner answers the four payout questions in `CLAUDE.md`.
+- **Payout tracking:** a payout record per seller order, once the payout rules are confirmed.
 - **Payment proof:** a private storage bucket and a proof reference on `orders`, for bank transfer proof uploads.
