@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Field, Notice } from "@/components/form-field";
-import { ProductCard } from "@/components/product-card";
+import { SavedFeedItem, type FeedView } from "@/components/saved-feed-item";
 import type { ProductCardData } from "@/hooks/use-home-products";
 import { useAuth } from "@/hooks/use-auth";
 import { useCatalogue } from "@/hooks/use-catalogue";
@@ -38,6 +38,9 @@ const BUTTON =
 
 const GHOST =
   "rounded-full border border-blue-700 px-5 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50";
+
+const TOGGLE =
+  "rounded-full border px-4 py-2 text-sm font-semibold";
 
 function findNode(nodes: CategoryNode[], id: string): CategoryNode | null {
   for (const node of nodes) {
@@ -101,6 +104,7 @@ export function SavedFeed() {
   const [message, setMessage] = useState<Message>(null);
   const [busy, setBusy] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [view, setView] = useState<FeedView>("grid");
 
   const [newLabel, setNewLabel] = useState("");
   const [newQuery, setNewQuery] = useState("");
@@ -420,20 +424,48 @@ export function SavedFeed() {
           </Link>
         </div>
       ) : (
-        sections.map((section) => (
-          <section key={section.key}>
-            <h2 className="text-xl font-bold text-ink">{section.title}</h2>
-            <p className="mt-1 text-sm text-slate-600">{section.subtitle}</p>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
-              {section.items.map((item) => (
-                <div key={item.card.productId}>
-                  <p className="mb-1 truncate text-xs font-semibold text-blue-700">{item.reason}</p>
-                  <ProductCard product={item.card} />
-                </div>
-              ))}
-            </div>
-          </section>
-        ))
+        <>
+          <div className="flex justify-end gap-2">
+            {(["grid", "list"] as FeedView[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setView(option)}
+                aria-pressed={view === option}
+                className={`${TOGGLE} ${
+                  view === option
+                    ? "border-blue-700 bg-blue-700 text-white"
+                    : "border-slate-300 text-ink hover:border-slate-500"
+                }`}
+              >
+                {option === "grid" ? "Grid" : "List"}
+              </button>
+            ))}
+          </div>
+
+          {sections.map((section) => (
+            <section key={section.key}>
+              <h2 className="text-xl font-bold text-ink">{section.title}</h2>
+              <p className="mt-1 text-sm text-slate-600">{section.subtitle}</p>
+              <div
+                className={
+                  view === "grid"
+                    ? "mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4"
+                    : "mt-4 space-y-3"
+                }
+              >
+                {section.items.map((item) => (
+                  <SavedFeedItem
+                    key={item.card.productId}
+                    card={item.card}
+                    reason={item.reason}
+                    view={view}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+        </>
       )}
     </div>
   );
