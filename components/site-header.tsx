@@ -2,9 +2,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useAuth } from "@/hooks/use-auth";
 import { useCategoryTree } from "@/hooks/use-category-tree";
 import { useConversations } from "@/hooks/use-conversations";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -32,46 +31,6 @@ function CountBadge({ count }: { count: number }) {
   );
 }
 
-/** The greeting in the top strip. Changes between signed in and signed out. */
-function Greeting() {
-  const { user, loading } = useAuth();
-
-  // Reserves the same space while the session is checked, so the strip doesn't jump.
-  if (loading) {
-    return (
-      <span aria-hidden="true" className="invisible">
-        Hi! Sign in or register
-      </span>
-    );
-  }
-
-  if (user) {
-    const fullName = (user.user_metadata?.full_name as string | undefined) ?? "";
-    const firstName = fullName.trim().split(" ")[0] || user.email?.split("@")[0] || "there";
-    return (
-      <>
-        Hi, <span className="font-semibold text-ink">{firstName}</span>{" "}
-        <Link href="/account/" className="font-semibold text-blue-700 hover:underline">
-          My account
-        </Link>
-      </>
-    );
-  }
-
-  return (
-    <>
-      Hi!{" "}
-      <Link href="/login/" className="font-semibold text-blue-700 hover:underline">
-        Sign in
-      </Link>{" "}
-      or{" "}
-      <Link href="/register/" className="font-semibold text-blue-700 hover:underline">
-        register
-      </Link>
-    </>
-  );
-}
-
 export function SiteHeader() {
   const { tree, status } = useCategoryTree();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -79,7 +38,6 @@ export function SiteHeader() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const hydrated = useHydrated();
   const pathname = usePathname();
-  const router = useRouter();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchPanelRef = useRef<HTMLDivElement>(null);
@@ -125,35 +83,30 @@ export function SiteHeader() {
     };
   }, [searchOpen]);
 
-  // Navigates in the app instead of a native form submit, because closing the panel
-  // would unmount the form before the browser could send the search.
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const data = new FormData(event.currentTarget);
-    const query = String(data.get("q") ?? "").trim();
-    const category = String(data.get("cat") ?? "").trim();
-
-    if (!query && !category) {
+    const query = searchInputRef.current?.value.trim() ?? "";
+    if (!query) {
+      event.preventDefault();
       searchInputRef.current?.focus();
       return;
     }
-
-    const params = new URLSearchParams();
-    if (query) params.set("q", query);
-    if (category) params.set("cat", category);
-
     setSearchOpen(false);
-    router.push(`/search/?${params.toString()}`);
   }
 
   return (
     <header className="sticky top-0 z-40 bg-white shadow-sm">
-      {/* Top strip: greeting on every screen size, helpful links on desktop only */}
+      {/* Top strip: sign in and helpful links */}
       <div className="border-b border-slate-200 bg-paper text-xs text-ink">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-1.5">
           <p>
-            <Greeting />
+            Hi!{" "}
+            <Link href="/login/" className="font-semibold text-blue-700 hover:underline">
+              Sign in
+            </Link>{" "}
+            or{" "}
+            <Link href="/register/" className="font-semibold text-blue-700 hover:underline">
+              register
+            </Link>
           </p>
           <div className="hidden items-center gap-5 md:flex">
             <Link href="/track/" className="hover:text-blue-700">
@@ -162,7 +115,7 @@ export function SiteHeader() {
             <Link href="/stores/" className="hover:text-blue-700">
               Store locator
             </Link>
-            <Link href="/contact/" className="hover:text-blue-700">
+            <Link href="/help/" className="hover:text-blue-700">
               Help and contact
             </Link>
             <a href={SITE.phoneLink} className="font-semibold text-ink">
