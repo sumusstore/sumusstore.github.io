@@ -1,3 +1,4 @@
+// components/site-footer.tsx
 import Link from "next/link";
 import { SITE } from "@/lib/site-config";
 
@@ -69,14 +70,9 @@ export function SiteFooter() {
               </a>
             </li>
             <li>
-              <a
-                href={SITE.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-700 hover:underline"
-              >
-                Chat on WhatsApp
-              </a>
+              <Link href="/contact/" className="text-blue-700 hover:underline">
+                Send us a message
+              </Link>
             </li>
             <li>
               <a href={`mailto:${SITE.email}`} className="text-blue-700 hover:underline">
