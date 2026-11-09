@@ -1,22 +1,17 @@
-// components/site-header.tsx
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useCategoryTree } from "@/hooks/use-category-tree";
-import { useConversations } from "@/hooks/use-conversations";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { SITE } from "@/lib/site-config";
 import { selectCartCount, useCartStore } from "@/stores/cart-store";
-import { useWishlistStore } from "@/stores/wishlist-store";
 import {
   CartIcon,
   ChevronDownIcon,
   CloseIcon,
-  HeartIcon,
   MenuIcon,
-  MessageIcon,
   SearchIcon,
   UserIcon,
 } from "@/components/icons";
@@ -32,30 +27,31 @@ function CountBadge({ count }: { count: number }) {
 }
 
 export function SiteHeader() {
+  const router = useRouter();
+  const pathname = usePathname();
   const { tree, status } = useCategoryTree();
+  const hydrated = useHydrated();
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const hydrated = useHydrated();
-  const pathname = usePathname();
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchPanelRef = useRef<HTMLDivElement>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
 
   const cartCount = useCartStore(selectCartCount);
-  const wishlistCount = useWishlistStore((state) => state.items.length);
-  const { unreadCount } = useConversations();
-
-  // Counts show 0 until the browser has loaded saved data, so server and browser match.
+  // Shows 0 until the browser has loaded the saved cart, so server and browser match.
   const shownCartCount = hydrated ? cartCount : 0;
-  const shownWishlistCount = hydrated ? wishlistCount : 0;
 
   const activeNode = tree.find((node) => node.id === activeId);
 
-  // Closes the search panel whenever the customer moves to another page.
+  // Closes the search panel and the menu whenever the customer moves to another page.
   useEffect(() => {
     setSearchOpen(false);
+    setMenuOpen(false);
   }, [pathname]);
 
   // While the search panel is open: focus the input, close on Escape or a click outside it.
@@ -83,14 +79,22 @@ export function SiteHeader() {
     };
   }, [searchOpen]);
 
+  // Builds the results address from the typed words and category, then moves there inside the app.
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    const query = searchInputRef.current?.value.trim() ?? "";
-    if (!query) {
-      event.preventDefault();
+    event.preventDefault();
+    const trimmed = query.trim();
+
+    if (!trimmed && !category) {
       searchInputRef.current?.focus();
       return;
     }
+
+    const params = new URLSearchParams();
+    if (trimmed) params.set("q", trimmed);
+    if (category) params.set("cat", category);
+
     setSearchOpen(false);
+    router.push(`/search/?${params.toString()}`);
   }
 
   return (
@@ -115,7 +119,7 @@ export function SiteHeader() {
             <Link href="/stores/" className="hover:text-blue-700">
               Store locator
             </Link>
-            <Link href="/help/" className="hover:text-blue-700">
+            <Link href="/contact/" className="hover:text-blue-700">
               Help and contact
             </Link>
             <a href={SITE.phoneLink} className="font-semibold text-ink">
@@ -125,27 +129,18 @@ export function SiteHeader() {
         </div>
       </div>
 
-      {/* Main row: menu, logo, and icons (search, account, messages, wishlist, cart) */}
+      {/* Main row: wordmark on the left, Search, Account, Cart and Menu on the right */}
       <div className="relative border-b border-slate-200">
-        <div className="mx-auto flex max-w-6xl items-center gap-x-3 px-4 py-3 md:gap-6">
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Open menu"
-            aria-expanded={menuOpen}
-            className="-ml-2 p-2 md:hidden"
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+          <Link
+            href="/"
+            aria-label={`${SITE.name} home`}
+            className="shrink-0 text-2xl font-extrabold uppercase tracking-tight text-blue-700"
           >
-            <MenuIcon className="h-6 w-6" />
-          </button>
-
-          <Link href="/" className="shrink-0 text-2xl font-extrabold tracking-tight text-blue-700">
             <span className="border-b-4 border-gold pb-0.5">{SITE.name}</span>
           </Link>
 
-          <nav
-            aria-label="Search, account, wishlist and cart"
-            className="ml-auto flex shrink-0 items-center gap-1 md:gap-4"
-          >
+          <nav aria-label="Search, account, cart and menu" className="flex items-center gap-1 md:gap-4">
             <button
               ref={searchButtonRef}
               type="button"
@@ -158,6 +153,7 @@ export function SiteHeader() {
               <SearchIcon className="h-6 w-6" />
               <span className="hidden lg:block">Search</span>
             </button>
+
             <Link
               href="/account/"
               aria-label="My account"
@@ -166,24 +162,7 @@ export function SiteHeader() {
               <UserIcon className="h-6 w-6" />
               <span className="hidden lg:block">Account</span>
             </Link>
-            <Link
-              href="/messages/"
-              aria-label={`Messages, ${unreadCount} unread`}
-              className="relative flex flex-col items-center gap-0.5 p-1 text-xs text-ink hover:text-blue-700"
-            >
-              <MessageIcon className="h-6 w-6" />
-              <span className="hidden lg:block">Messages</span>
-              <CountBadge count={unreadCount} />
-            </Link>
-            <Link
-              href="/wishlist/"
-              aria-label={`Wishlist, ${shownWishlistCount} items`}
-              className="relative flex flex-col items-center gap-0.5 p-1 text-xs text-ink hover:text-blue-700"
-            >
-              <HeartIcon className="h-6 w-6" />
-              <span className="hidden lg:block">Wishlist</span>
-              <CountBadge count={shownWishlistCount} />
-            </Link>
+
             <Link
               href="/cart/"
               aria-label={`Cart, ${shownCartCount} items`}
@@ -193,6 +172,17 @@ export function SiteHeader() {
               <span className="hidden lg:block">Cart</span>
               <CountBadge count={shownCartCount} />
             </Link>
+
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open menu"
+              aria-expanded={menuOpen}
+              className="flex flex-col items-center gap-0.5 p-1 text-xs text-ink hover:text-blue-700"
+            >
+              <MenuIcon className="h-6 w-6" />
+              <span className="hidden lg:block">Menu</span>
+            </button>
           </nav>
         </div>
 
@@ -206,8 +196,6 @@ export function SiteHeader() {
           >
             <div className="mx-auto max-w-3xl px-4 py-4">
               <form
-                action="/search/"
-                method="get"
                 onSubmit={handleSearchSubmit}
                 className="flex overflow-hidden rounded-full border-2 border-blue-700 focus-within:ring-2 focus-within:ring-blue-200"
               >
@@ -216,7 +204,8 @@ export function SiteHeader() {
                 </label>
                 <select
                   id="header-category"
-                  name="cat"
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
                   className="hidden max-w-40 shrink-0 border-r border-slate-300 bg-slate-100 px-3 text-sm text-ink md:block"
                 >
                   <option value="">All categories</option>
@@ -234,7 +223,8 @@ export function SiteHeader() {
                   ref={searchInputRef}
                   id="header-search"
                   type="search"
-                  name="q"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search for phones, TVs, appliances and more"
                   className="min-w-0 flex-1 bg-white px-4 py-2.5 text-sm focus:outline-none"
                 />
