@@ -33,7 +33,7 @@ Seller registrations, business details and approval status. Sumus's own stock is
 - `reviewed_at` (timestamptz, nullable)
 - `terms_version` (text) **(verify)**
 - `terms_accepted_at` (timestamptz)
-- `paystack_subaccount_code` (text, nullable). Not yet populated; subaccount creation is pending the payout decisions.
+- `paystack_subaccount_code` (text, nullable). Not yet populated; subaccount creation is pending.
 - `created_at` (timestamptz)
 - **Private columns (never readable by visitors):** `account_number`, `bank_name`, `account_name`, `owner_phone`, `address`, `registration_number`, `tax_id`
 
@@ -47,41 +47,24 @@ Verification documents uploaded by sellers. Opened by admins through 5-minute si
 - `file_path` (text)
 - `created_at` (timestamptz)
 
-### `seller_follows`
-Customers following seller shops. Created and confirmed.
-- `user_id` (uuid, not null, references `auth.users.id`, on delete cascade)
-- `seller_id` (uuid, not null, references `sellers.id`, on delete cascade)
-- `created_at` (timestamptz, not null, default `now()`)
-- **Primary key:** `(user_id, seller_id)`
-
-### `saved_searches`
-Searches a customer asked the saved feed to watch. Created and confirmed.
-- `id` (uuid, primary key, default `gen_random_uuid()`)
-- `user_id` (uuid, not null, references `auth.users.id`, on delete cascade)
-- `label` (text, not null, 1 to 120 characters)
-- `query` (text, not null, default `''`)
-- `category_id` (uuid, nullable, references `categories.id`, on delete set null)
-- `created_at` (timestamptz, not null, default `now()`)
-
-### `product_views`
-One row per product per signed-in customer, recording the most recent view. Created and confirmed.
-- `id` (uuid, primary key, default `gen_random_uuid()`)
-- `user_id` (uuid, not null, references `auth.users.id`, on delete cascade)
-- `product_id` (uuid, not null, references `products.id`, on delete cascade)
-- `viewed_at` (timestamptz, not null, default `now()`)
-- **Index:** `product_views_user_recent` on `(user_id, viewed_at desc)`
-
 ---
 
 ## 2. Catalog & Products Tables
 
 ### `categories`
-Hierarchical product categories. Only subcategories (rows with no children) can hold products.
+Hierarchical product categories. Only subcategories (rows with a `parent_id`) can hold products.
 - `id` (uuid, primary key)
 - `name` (text)
 - `slug` (text, unique)
-- `parent_id` (uuid, nullable, self-referencing)
-- `sort_order` (integer)
+- `parent_id` (uuid, nullable, self-referencing). Null means a main category.
+- `sort_order` (integer). Lower numbers show first.
+- `is_popular` (boolean, not null, default `false`). Main categories only. Controls the "Popular Categories" list at the top of the mobile menu. Subcategories cannot be popular.
+
+**Popular rules:**
+- Enforced by the trigger `categories_popular_top_level_only` (before insert or update). It raises an error if `is_popular` is true while `parent_id` is set.
+- Partial index `categories_popular_idx` on `(sort_order) where is_popular`.
+- Public read is covered by "Public read categories". Only admins can change the flag, through "admin update categories" (checks `is_admin()`).
+- Admin switch: Brands and categories tab, component `AdminPopularToggle`.
 
 ### `brands`
 Product brands. Sellers can add brands; exact duplicates are blocked.
@@ -318,6 +301,7 @@ Approved sellers only. Exposes `slug`, `display_name`, `kind`, `state`, `created
 - `check_seller_publish()` (on `products`): blocks sellers from showing an incomplete product.
 - `pause_seller_products()` (on `sellers`): hides all products when a seller leaves `approved`.
 - `queue_site_rebuild()` (on `products` and `categories`): writes to `rebuild_queue` for changes that affect public pages.
+- `categories_popular_top_level_only()` (on `categories`): blocks `is_popular = true` on any category that has a `parent_id`.
 - `queue_seller_rebuild()` (on `sellers`): queues a rebuild on approval, rename, slug, state, kind or status change.
 - `release_offer_on_cancel()` (on `orders`): returns an attached offer to `accepted` (or `expired`) when an order is cancelled.
 - `handle_new_user()`: creates a `profiles` row on sign-up.
@@ -353,15 +337,12 @@ All policies use `(select auth.uid())`.
 - **profiles:** "Users read own profile"; "Users update own name and phone".
 - **addresses:** "Customers manage own addresses" (owner only).
 - **wishlist_items:** "Customers manage own wishlist" (owner only).
-- **seller_follows:** "Customers manage own follows" (owner only, all operations).
-- **saved_searches:** "Customers manage own saved searches" (owner only, all operations).
-- **product_views:** "Customers manage own product views" (owner only, all operations).
 - **orders:** "Customers read own orders". **order_items:** "Customers read own order items". Writes go through Edge Functions.
 - **conversations and messages:** participants only, and hidden conversations are excluded for buyer and seller. Writes go through the functions above.
 - **offers:** participants read. Writes go through the offer functions.
 - **reviews:** "Customers read own reviews"; "Customers write own reviews" (insert only, pending, not verified by the client). Public read of approved reviews **(verify name)**.
 - **Public catalogue reads:** categories "Public read categories"; brands "Public read brands"; products, variants and images public read for active rows **(verify names)**.
-- **Admin writes:** categories and brands use separate insert, update and delete rules, each checking `is_admin()`. Brands also allow inserts from approved sellers ("Admins and approved sellers add brands").
+- **Admin writes:** categories and brands use separate insert, update and delete rules, each checking `is_admin()`. The category update rule ("admin update categories") also covers the `is_popular` flag. Brands also allow inserts from approved sellers ("Admins and approved sellers add brands").
 - **sellers:** "Sellers read own application"; "Sellers apply once as pending" (insert, status pending); "Public read approved sellers" (select where `status = 'approved'`). Column privileges limit visitors to `id`, `slug`, `display_name`, `kind`, `state`, `created_at`, `status`.
 - **Seller products:** "Sellers read own products", "Sellers add products", "Sellers edit own products", "Sellers manage own versions", "Sellers manage own photos".
 - **seller_documents:** "Sellers add own documents"; "Sellers read own documents". Admin reads exist **(verify names)**.
@@ -401,6 +382,5 @@ All policies use `(select auth.uid())`.
 
 ## 12. Planned Changes (not yet built)
 
-- **Seller payouts:** a Paystack subaccount per seller, stored in `sellers.paystack_subaccount_code`, created on approval. Split logic in `create-order`. Blocked until the owner answers the four payout questions in `CLAUDE.md`.
-- **Payout tracking:** a payout record per seller order, once the payout rules are confirmed.
+- **Seller payouts:** a Paystack subaccount per seller, stored in `sellers.paystack_subaccount_code`, created on approval. Split logic in `create-order`. Requires the decisions listed in `CLAUDE.md`.
 - **Payment proof:** a private storage bucket and a proof reference on `orders`, for bank transfer proof uploads.
