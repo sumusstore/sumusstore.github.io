@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { AdminPopularToggle } from "@/components/admin-popular-toggle";
 import { Notice } from "@/components/form-field";
 import { slugify, type Brand, type Category } from "@/lib/admin-utils";
 import { supabase } from "@/lib/supabase";
@@ -329,6 +330,7 @@ export function AdminSetup() {
   return (
     <div className="space-y-10">
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
+      <AdminPopularToggle />
 
       <section className="space-y-4 rounded-xl border border-slate-200 border-t-4 border-t-gold bg-white p-5">
         <h2 className="text-lg font-bold text-ink">Brands</h2>
