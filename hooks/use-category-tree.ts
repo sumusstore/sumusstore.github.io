@@ -7,6 +7,7 @@ export type CategoryNode = {
   id: string;
   name: string;
   slug: string;
+  isPopular: boolean;
   children: CategoryNode[];
 };
 
@@ -15,6 +16,7 @@ type CategoryRow = {
   parent_id: string | null;
   name: string;
   slug: string;
+  is_popular: boolean;
 };
 
 export type CategoryStatus = "loading" | "ready" | "error";
@@ -23,7 +25,13 @@ export type CategoryStatus = "loading" | "ready" | "error";
 export function buildCategoryTree(rows: CategoryRow[]): CategoryNode[] {
   const nodes = new Map<string, CategoryNode>();
   rows.forEach((row) => {
-    nodes.set(row.id, { id: row.id, name: row.name, slug: row.slug, children: [] });
+    nodes.set(row.id, {
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      isPopular: row.is_popular,
+      children: [],
+    });
   });
 
   const roots: CategoryNode[] = [];
@@ -40,7 +48,12 @@ export function buildCategoryTree(rows: CategoryRow[]): CategoryNode[] {
   return roots;
 }
 
-/** Loads every category from Supabase and returns them as a tree. */
+/** Main categories marked as popular, in sort order. Subcategories are never popular. */
+export function popularCategories(tree: CategoryNode[]): CategoryNode[] {
+  return tree.filter((node) => node.isPopular);
+}
+
+/** Loads every category from Supabase. Returns the full tree and the popular main categories. */
 export function useCategoryTree() {
   const [tree, setTree] = useState<CategoryNode[]>([]);
   const [status, setStatus] = useState<CategoryStatus>("loading");
@@ -51,7 +64,7 @@ export function useCategoryTree() {
     async function load() {
       const { data, error } = await supabase
         .from("categories")
-        .select("id, parent_id, name, slug")
+        .select("id, parent_id, name, slug, is_popular")
         .order("sort_order", { ascending: true });
 
       if (!active) return;
@@ -69,5 +82,5 @@ export function useCategoryTree() {
     };
   }, []);
 
-  return { tree, status };
+  return { tree, popular: popularCategories(tree), status };
 }
