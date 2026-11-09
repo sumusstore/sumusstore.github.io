@@ -107,7 +107,7 @@ export function MobileMenu({ open, onClose, tree, status }: MobileMenuProps) {
   }
 
   const topBar = (
-    <div className="flex items-center justify-between px-4 py-3">
+    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
       {canGoBack ? (
         <button
           type="button"
@@ -120,6 +120,7 @@ export function MobileMenu({ open, onClose, tree, status }: MobileMenuProps) {
       ) : (
         <span className="h-11 w-11" aria-hidden="true" />
       )}
+      <span className="text-base font-extrabold uppercase tracking-tight text-blue-700">{ "" }</span>
       <button
         type="button"
         onClick={onClose}
@@ -212,23 +213,9 @@ export function MobileMenu({ open, onClose, tree, status }: MobileMenuProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 md:hidden">
-      <button
-        type="button"
-        aria-label="Close menu"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/40"
-      />
-
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label="Site menu"
-        className="absolute inset-y-0 left-0 flex w-[85%] max-w-sm flex-col overflow-y-auto bg-white shadow-xl"
-      >
-        {topBar}
-        {body}
-      </aside>
+    <div role="dialog" aria-modal="true" aria-label="Site menu" className="fixed inset-0 z-50 overflow-y-auto bg-white md:hidden">
+      {topBar}
+      {body}
     </div>
   );
 }
